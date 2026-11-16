@@ -12,7 +12,7 @@ jobs:
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential clang llvm lld curl patch pkg-config binutils git cmake meson ninja-build python3 python3-mako python3-yaml glslang-tools zip unzip llvm-18-dev libclang-18-dev libclang-cpp18-dev libclc-18-dev libllvmspirvlib-18-dev libvulkan-dev vulkan-utility-libraries-dev spirv-headers
+          sudo apt-get install -y build-essential clang llvm lld curl patch pkg-config binutils git cmake meson ninja-build python3 python3-mako python3-yaml glslang-tools zip unzip llvm-18-dev libclang-18-dev libclang-cpp18-dev libclc-18-dev libllvmspirvlib-18-dev libvulkan-dev vulkan-utility-libraries-dev spirv-headers libfontconfig1-dev libx11-dev
           pipx install meson
           pipx install ninja
 
@@ -95,16 +95,16 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
+          export JOBS=2
           python3 -c '
           import pathlib, re
           p = pathlib.Path("tools/check-core.py")
           txt = p.read_text()
           def add_fix(m):
-              return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b[7] == 0:\n        b[7] = 9\n        path.write_bytes(b)\n"
+              return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b == 0:\n        b = 9\n        path.write_bytes(b)\n"
           p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
-          assert "b[7] = 9" in p.read_text()
+          assert "b = 9" in p.read_text()
           '
-          rm -rf build/cores/fceumm
           bash tools/build-title.sh
 
       - name: Package PPSA99169
