@@ -96,12 +96,13 @@ jobs:
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
           python3 -c '
-          import pathlib
+          import pathlib, re
           p = pathlib.Path("tools/check-core.py")
           txt = p.read_text()
-          patch = "def inspect(path):\n    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b == 0:\n        b = 9\n        path.write_bytes(b)\n"
-          if "b = 9" not in txt:
-              p.write_text(txt.replace("def inspect(path):\n", patch, 1))
+          def add_fix(m):
+              return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b[7] == 0:\n        b[7] = 9\n        path.write_bytes(b)\n"
+          p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
+          assert "b[7] = 9" in p.read_text()
           '
           rm -rf build/cores/fceumm
           bash tools/build-title.sh
