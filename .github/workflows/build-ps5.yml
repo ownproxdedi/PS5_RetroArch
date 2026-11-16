@@ -87,7 +87,14 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
-          sed -i '/setup-native-dependencies.sh/a sed -i "s|\\\"\\$@\\\"|--osabi=freebsd \\\"\\$@\\\"|g" "$sdk/bin/prospero-lld"' tools/build-title.sh
+          python3 -c '
+          import pathlib
+          p = pathlib.Path("tools/check-core.py")
+          txt = p.read_text()
+          patch = "def inspect(path):\n    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b[7] == 0:\n        b[7] = 9\n        path.write_bytes(b)\n"
+          if "b[7] = 9" not in txt:
+              p.write_text(txt.replace("def inspect(path):\n", patch, 1))
+          '
           rm -rf build/cores/fceumm
           bash tools/build-title.sh
 
