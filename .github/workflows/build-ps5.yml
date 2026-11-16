@@ -46,12 +46,16 @@ jobs:
       - name: Build PS5_Vulkan RADV release archive
         working-directory: PS5_Vulkan
         run: |
+          mkdir -p .deps/native/zlib
+          curl -fL --retry 5 https://github.com -o .deps/native/zlib/zlib-1.3.2.tar.gz
           bash tools/setup-native-dependencies.sh
           bash tools/build-radv.sh release
 
       - name: Fetch dependencies and RetroArch sources
         working-directory: PS5_RetroArch
         run: |
+          mkdir -p .deps/native/zlib
+          cp ../PS5_Vulkan/.deps/native/zlib/zlib-1.3.2.tar.gz .deps/native/zlib/zlib-1.3.2.tar.gz
           make deps
           rm -rf vendor/retroarch
           sed -i 's|libretro-common/include/retroarch.h|retroarch.h|g' tools/fetch-retroarch.sh
