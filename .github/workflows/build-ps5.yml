@@ -48,8 +48,8 @@ jobs:
         run: |
           bash tools/setup-native-dependencies.sh
           bash tools/build-radv.sh release
-          echo "=== Files created in PS5_Vulkan ==="
-          find . -maxdepth 4 -not -path '*/.git*' \( -name "*.tar*" -o -name "*.a" -o -name "*.so" \)
+          echo "=== Archives and Vulkan libs in PS5_Vulkan ==="
+          find . -maxdepth 5 -not -path '*/.git*' \( -name "*.tar*" -o -name "*vulkan*" -o -name "*radv*" \)
 
       - name: Fetch dependencies and RetroArch sources
         working-directory: PS5_RetroArch
@@ -67,10 +67,10 @@ jobs:
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
-          export RADV_ARCHIVE="$(find "$PS5_VULKAN_DIR" -maxdepth 4 -name "*.tar*" | head -n1)"
+          export RADV_ARCHIVE="$(find "$PS5_VULKAN_DIR" -maxdepth 5 -name "*.tar*" ! -name "*zlib*" | head -n1)"
           echo "Using PS5_VULKAN_DIR=$PS5_VULKAN_DIR"
           echo "Using RADV_ARCHIVE=$RADV_ARCHIVE"
-          bash tools/build-title.sh || { head -n 90 tools/build-retroarch.sh; exit 1; }
+          bash tools/build-title.sh || { cat tools/retroarch-sources.sh; exit 1; }
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
@@ -82,4 +82,3 @@ jobs:
         with:
           name: PPSA99169-smb-fix
           path: PS5_RetroArch/dist/PPSA99169-smb-fix.zip
-
