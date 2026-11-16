@@ -83,9 +83,20 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
-          sed -i 's|ld.lld|ld.lld --osabi=freebsd|g' "$PS5_PAYLOAD_SDK/bin/prospero-lld"
-          rm -rf build/cores/fceumm
-          bash tools/build-title.sh
+          python3 -c '
+          import pathlib
+          p = pathlib.Path(".deps/native/ps5-payload-sdk/bin/prospero-lld")
+          txt = p.read_text()
+          if "--osabi=freebsd" not in txt:
+              p.write_text(txt.replace("exec ", "exec ") + "")
+          print("=== prospero-lld ===")
+          print(txt)
+          '
+          bash tools/build-title.sh || {
+            echo "=== configure.log ==="
+            cat build/ra-conf/configure.log 2>/dev/null || true
+            exit 1
+          }
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
