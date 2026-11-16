@@ -46,12 +46,9 @@ jobs:
       - name: Build PS5_Vulkan RADV release archive
         working-directory: PS5_Vulkan
         run: |
-          if [ -f tools/setup-native-dependencies.sh ]; then
-            bash tools/setup-native-dependencies.sh
-          fi
-          if [ -f tools/build-radv.sh ]; then
-            bash tools/build-radv.sh release
-          fi
+          bash tools/setup-native-dependencies.sh
+          bash tools/build-radv.sh release
+          find . -maxdepth 3 -name "*.tar*" -o -name "libvulkan*"
 
       - name: Fetch dependencies and RetroArch sources
         working-directory: PS5_RetroArch
@@ -68,7 +65,11 @@ jobs:
         run: |
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
-          bash tools/build-title.sh || { cat build/ra-conf/configure.log; exit 1; }
+          export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
+          export RADV_ARCHIVE="$(find "$PS5_VULKAN_DIR" -maxdepth 3 -name "*radv*.tar*" | head -n1)"
+          echo "Using PS5_VULKAN_DIR=$PS5_VULKAN_DIR"
+          echo "Using RADV_ARCHIVE=$RADV_ARCHIVE"
+          bash tools/build-title.sh || { head -n 80 tools/build-title.sh; cat build/ra-conf/configure.log; exit 1; }
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
