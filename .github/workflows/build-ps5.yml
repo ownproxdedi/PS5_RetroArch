@@ -40,6 +40,9 @@ jobs:
       - name: Build PS5_Vulkan RADV release archive
         working-directory: PS5_Vulkan
         run: |
+          if [ -f tools/setup-native-dependencies.sh ]; then
+            bash tools/setup-native-dependencies.sh
+          fi
           if [ -f tools/build-radv.sh ]; then
             bash tools/build-radv.sh release
           fi
