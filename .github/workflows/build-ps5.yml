@@ -83,7 +83,7 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
-          sed -i '/setup-native-dependencies.sh/a sed -i "s|-m elf_x86_64_fbsd|-m elf_x86_64_fbsd --osabi=freebsd|g" "$sdk/bin/prospero-lld"' tools/build-title.sh
+          sed -i '/setup-native-dependencies.sh/a sed -i "s|\\\"\\$@\\\"|--osabi=freebsd \\\"\\$@\\\"|g" "$sdk/bin/prospero-lld"' tools/build-title.sh
           rm -rf build/cores/fceumm
           bash tools/build-title.sh
 
