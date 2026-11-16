@@ -68,7 +68,7 @@ jobs:
         run: |
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
-          bash tools/build-title.sh
+          bash tools/build-title.sh || { cat build/ra-conf/configure.log; exit 1; }
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
