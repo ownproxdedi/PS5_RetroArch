@@ -19,11 +19,23 @@ jobs:
         with:
           path: PS5_RetroArch
 
-      - name: Checkout sibling repositories (PS5_Vulkan, PS5_Mesa, PS5_PayloadSDK)
-        run: |
-          git clone --depth 1 https://github.com PS5_Vulkan
-          git clone --depth 1 https://github.com PS5_Mesa
-          git clone --depth 1 https://github.com PS5_PayloadSDK
+      - name: Checkout PS5_Vulkan
+        uses: actions/checkout@v4
+        with:
+          repository: mihawk-99/PS5_Vulkan
+          path: PS5_Vulkan
+
+      - name: Checkout PS5_Mesa
+        uses: actions/checkout@v4
+        with:
+          repository: mihawk-99/PS5_Mesa
+          path: PS5_Mesa
+
+      - name: Checkout PS5_PayloadSDK
+        uses: actions/checkout@v4
+        with:
+          repository: mihawk-99/PS5_PayloadSDK
+          path: PS5_PayloadSDK
 
       - name: Build PS5_Vulkan RADV release archive
         working-directory: PS5_Vulkan
