@@ -85,18 +85,14 @@ jobs:
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
           python3 -c '
           import pathlib
-          p = pathlib.Path(".deps/native/ps5-payload-sdk/bin/prospero-lld")
-          txt = p.read_text()
-          if "--osabi=freebsd" not in txt:
-              p.write_text(txt.replace("exec ", "exec ") + "")
-          print("=== prospero-lld ===")
-          print(txt)
+          bt = pathlib.Path("tools/build-title.sh")
+          txt = bt.read_text()
+          inject = """bash "$root/tools/setup-native-dependencies.sh" >/dev/null
+          python3 -c '\''import pathlib; p=pathlib.Path(".deps/native/ps5-payload-sdk/bin/prospero-lld"); t=p.read_text(); p.write_text(t.replace(" -m elf_x86_64_fbsd", " -m elf_x86_64_fbsd --osabi=freebsd") if "-m elf_x86_64_fbsd" in t else t.replace("\"$@\"", "--osabi=freebsd \"$@\""))'\''"""
+          bt.write_text(txt.replace("bash \"$root/tools/setup-native-dependencies.sh\" >/dev/null", inject))
           '
-          bash tools/build-title.sh || {
-            echo "=== configure.log ==="
-            cat build/ra-conf/configure.log 2>/dev/null || true
-            exit 1
-          }
+          rm -rf build/cores/fceumm
+          bash tools/build-title.sh
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
