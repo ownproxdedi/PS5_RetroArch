@@ -1,0 +1,59 @@
+name: Build PS5 RetroArch
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang llvm lld curl patch pkg-config binutils git cmake ninja-build python3 zip unzip
+
+      - name: Checkout PS5_RetroArch
+        uses: actions/checkout@v4
+        with:
+          path: PS5_RetroArch
+
+      - name: Checkout sibling repositories (PS5_Vulkan, PS5_Mesa, PS5_PayloadSDK)
+        run: |
+          git clone --depth 1 https://github.com PS5_Vulkan
+          git clone --depth 1 https://github.com PS5_Mesa
+          git clone --depth 1 https://github.com PS5_PayloadSDK
+
+      - name: Build PS5_Vulkan RADV release archive
+        working-directory: PS5_Vulkan
+        run: |
+          if [ -f tools/build-radv.sh ]; then
+            bash tools/build-radv.sh release
+          fi
+
+      - name: Fetch dependencies and RetroArch sources
+        working-directory: PS5_RetroArch
+        run: |
+          make deps
+          export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
+          export PS5_CLANG=/usr/bin/clang
+          bash tools/fetch-retroarch.sh
+
+      - name: Build PS5 title package
+        working-directory: PS5_RetroArch
+        run: |
+          export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
+          export PS5_CLANG=/usr/bin/clang
+          bash tools/build-title.sh
+
+      - name: Package PPSA99169
+        working-directory: PS5_RetroArch/dist
+        run: |
+          zip -r PPSA99169-smb-fix.zip PPSA99169/
+
+      - name: Upload compiled PS5 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: PPSA99169-smb-fix
+          path: PS5_RetroArch/dist/PPSA99169-smb-fix.zip
