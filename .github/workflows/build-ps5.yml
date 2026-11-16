@@ -58,6 +58,7 @@ jobs:
         run: |
           make deps
           rm -rf vendor/retroarch
+          sed -i 's|libretro-common/include/retroarch.h|retroarch.h|g' tools/fetch-retroarch.sh
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
           bash tools/fetch-retroarch.sh
