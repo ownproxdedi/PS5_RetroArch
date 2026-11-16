@@ -82,7 +82,15 @@ jobs:
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
-          bash tools/build-title.sh
+          export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
+          rm -rf build/cores/fceumm
+          bash tools/build-title.sh || {
+            echo "=== SDK bin contents ==="
+            ls -la "$PS5_PAYLOAD_SDK/bin"
+            echo "=== build-fceumm.sh ==="
+            cat tools/build-fceumm.sh 2>/dev/null || grep -rn "fceumm" tools/ Makefile
+            exit 1
+          }
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
@@ -94,4 +102,3 @@ jobs:
         with:
           name: PPSA99169-smb-fix
           path: PS5_RetroArch/dist/PPSA99169-smb-fix.zip
-
