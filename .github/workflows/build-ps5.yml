@@ -83,15 +83,10 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
-          bash tools/build-title.sh || {
-            echo "=== readelf -h fceumm_libretro.so ==="
-            readelf -h build/cores/fceumm/fceumm_libretro.so 2>/dev/null || true
-            echo "=== build-fceumm.sh top ==="
-            head -n 45 tools/build-fceumm.sh
-            echo "=== check-core.py ==="
-            cat tools/check-core.py
-            exit 1
-          }
+          echo "=== prospero-clang & prospero-lld ==="
+          cat "$PS5_PAYLOAD_SDK/bin/prospero-clang"
+          cat "$PS5_PAYLOAD_SDK/bin/prospero-lld"
+          bash tools/build-title.sh
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
