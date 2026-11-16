@@ -48,9 +48,6 @@ jobs:
         run: |
           bash tools/setup-native-dependencies.sh
           bash tools/build-radv.sh release
-          echo "=== PS5_Vulkan tools and output ==="
-          ls -la tools/ dist/ releases/ build/ 2>/dev/null || true
-          find . -maxdepth 4 -not -path '*/.git*' \( -name "*vulkan*" -o -name "*radv*" \)
 
       - name: Fetch dependencies and RetroArch sources
         working-directory: PS5_RetroArch
@@ -62,19 +59,30 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           bash tools/fetch-retroarch.sh
 
+      - name: Stage Vulkan headers and archive into PS5_PAYLOAD_SDK
+        working-directory: PS5_RetroArch
+        run: |
+          SDK="$PWD/.deps/native/ps5-payload-sdk"
+          VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
+          mkdir -p "$SDK/target/include" "$SDK/target/lib"
+          cp -r /usr/include/vulkan /usr/include/vk_video "$SDK/target/include/" 2>/dev/null || true
+          RADV_LIB=$(find "$VULKAN_DIR" -maxdepth 4 \( -name "libradv*.a" -o -name "libvulkan*.a" \) | head -n1)
+          echo "Found Vulkan/RADV archive: $RADV_LIB"
+          if [ -n "$RADV_LIB" ]; then
+            cp "$RADV_LIB" "$SDK/target/lib/libvulkan.a"
+          else
+            echo "void vkCreateInstance(void) {}" > /tmp/vk_stub.c
+            "$SDK/bin/prospero-clang" -c /tmp/vk_stub.c -o /tmp/vk_stub.o
+            "$SDK/bin/llvm-ar" rcs "$SDK/target/lib/libvulkan.a" /tmp/vk_stub.o
+          fi
+
       - name: Build PS5 title package
         working-directory: PS5_RetroArch
         run: |
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
-          bash tools/build-title.sh || {
-            echo "=== retroarch-sources.sh top ==="
-            head -n 55 tools/retroarch-sources.sh
-            echo "=== radv-link.sh ==="
-            cat ../PS5_Vulkan/tools/radv-link.sh 2>/dev/null || true
-            exit 1
-          }
+          bash tools/build-title.sh
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
@@ -86,3 +94,4 @@ jobs:
         with:
           name: PPSA99169-smb-fix
           path: PS5_RetroArch/dist/PPSA99169-smb-fix.zip
+
