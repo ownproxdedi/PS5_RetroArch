@@ -18,24 +18,28 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: PS5_RetroArch
+          fetch-depth: 0
 
       - name: Checkout PS5_Vulkan
         uses: actions/checkout@v4
         with:
           repository: mihawk-99/PS5_Vulkan
           path: PS5_Vulkan
+          fetch-depth: 0
 
       - name: Checkout PS5_Mesa
         uses: actions/checkout@v4
         with:
           repository: mihawk-99/PS5_Mesa
           path: PS5_Mesa
+          fetch-depth: 0
 
       - name: Checkout PS5_PayloadSDK
         uses: actions/checkout@v4
         with:
           repository: mihawk-99/PS5_PayloadSDK
           path: PS5_PayloadSDK
+          fetch-depth: 0
 
       - name: Build PS5_Vulkan RADV release archive
         working-directory: PS5_Vulkan
