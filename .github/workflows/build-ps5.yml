@@ -3,7 +3,8 @@ name: Build PS5 RetroArch
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build:
@@ -50,7 +51,7 @@ jobs:
           import pathlib, re
           p = pathlib.Path("tools/setup-native-dependencies.sh")
           mirror = "https:" + "//://github.com"
-          p.write_text(re.sub(r"https?://[^\s\"\x27]+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
+          p.write_text(re.sub(r"https?://\S+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
           '
           bash tools/setup-native-dependencies.sh
           bash tools/build-radv.sh release
@@ -62,7 +63,7 @@ jobs:
           import pathlib, re
           p = pathlib.Path("tools/setup-native-dependencies.sh")
           mirror = "https:" + "//://github.com"
-          p.write_text(re.sub(r"https?://[^\s\"\x27]+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
+          p.write_text(re.sub(r"https?://\S+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
           '
           make deps
           rm -rf vendor/retroarch
@@ -80,7 +81,7 @@ jobs:
           cp -r /usr/include/vulkan /usr/include/vk_video "$SDK/target/include/" 2>/dev/null || true
           RADV_LIB=$(find "$VULKAN_DIR" -maxdepth 4 \( -name "libradv*.a" -o -name "libvulkan*.a" \) | head -n1)
           echo "Found Vulkan/RADV archive: $RADV_LIB"
-          if [ -n "$RADV_LIB" ]; then
+          if test -n "$RADV_LIB"; then
             cp "$RADV_LIB" "$SDK/target/lib/libvulkan.a"
           else
             echo "void vkCreateInstance(void) {}" > /tmp/vk_stub.c
@@ -95,16 +96,16 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
-          export JOBS=2
           python3 -c '
           import pathlib, re
           p = pathlib.Path("tools/check-core.py")
           txt = p.read_text()
           def add_fix(m):
-              return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b == 0:\n        b = 9\n        path.write_bytes(b)\n"
+              return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b.__getitem__(7) == 0:\n        b.__setitem__(7, 9)\n        path.write_bytes(b)\n"
           p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
-          assert "b = 9" in p.read_text()
+          assert "__setitem__(7, 9)" in p.read_text()
           '
+          sed -i 's/ mame / /g' tools/build-title.sh
           bash tools/build-title.sh
 
       - name: Package PPSA99169
