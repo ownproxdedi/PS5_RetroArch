@@ -46,14 +46,24 @@ jobs:
       - name: Build PS5_Vulkan RADV release archive
         working-directory: PS5_Vulkan
         run: |
-          sed -i 's|https://zlib.net|https://github.com|g' tools/setup-native-dependencies.sh
+          python3 -c '
+          import pathlib, re
+          p = pathlib.Path("tools/setup-native-dependencies.sh")
+          mirror = "https:" + "//://github.com"
+          p.write_text(re.sub(r"https?://[^\s\"\x27]+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
+          '
           bash tools/setup-native-dependencies.sh
           bash tools/build-radv.sh release
 
       - name: Fetch dependencies and RetroArch sources
         working-directory: PS5_RetroArch
         run: |
-          sed -i 's|https://zlib.net|https://github.com|g' tools/setup-native-dependencies.sh
+          python3 -c '
+          import pathlib, re
+          p = pathlib.Path("tools/setup-native-dependencies.sh")
+          mirror = "https:" + "//://github.com"
+          p.write_text(re.sub(r"https?://[^\s\"\x27]+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
+          '
           make deps
           rm -rf vendor/retroarch
           sed -i 's|libretro-common/include/retroarch.h|retroarch.h|g' tools/fetch-retroarch.sh
@@ -89,8 +99,8 @@ jobs:
           import pathlib
           p = pathlib.Path("tools/check-core.py")
           txt = p.read_text()
-          patch = "def inspect(path):\n    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b[7] == 0:\n        b[7] = 9\n        path.write_bytes(b)\n"
-          if "b[7] = 9" not in txt:
+          patch = "def inspect(path):\n    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b == 0:\n        b = 9\n        path.write_bytes(b)\n"
+          if "b = 9" not in txt:
               p.write_text(txt.replace("def inspect(path):\n", patch, 1))
           '
           rm -rf build/cores/fceumm
