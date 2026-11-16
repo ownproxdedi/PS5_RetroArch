@@ -108,6 +108,7 @@ jobs:
           p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
           assert "__setitem__(7, 9)" in p.read_text()
           '
+          sed -i 's/ps5vk/radv/g' Makefile
           sed -i 's/ mame / /g' tools/build-title.sh
           bash tools/build-title.sh
 
