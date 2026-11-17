@@ -170,12 +170,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -c '
-          import pathlib, re
-          p = pathlib.Path("tools/setup-native-dependencies.sh")
-          mirror = "https:" + "//zlib.net/fossils/zlib-1.3.2.tar.gz"
-          p.write_text(re.sub(r"https?://\S+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
-          '
+          mkdir -p .deps/native
+          cp -r "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/zlib" .deps/native/zlib
           make deps
           rm -rf vendor/retroarch
           sed -i 's|libretro-common/include/retroarch.h|retroarch.h|g' tools/fetch-retroarch.sh
@@ -260,4 +256,3 @@ jobs:
             PPSA99169-ps5vk.zip.sha256
           if-no-files-found: error
           retention-days: 14
-
