@@ -44,13 +44,6 @@ jobs:
           path: PS5_PayloadSDK
           fetch-depth: 0
 
-      - name: Checkout ps5-opengl-sdk-0.2.0
-        uses: actions/checkout@v4
-        with:
-          repository: BlackBearReloaded/ps5-opengl
-          path: ps5-opengl-sdk-0.2.0
-          fetch-depth: 0
-
       - name: Build PS5_Vulkan ps5vk driver archives
         working-directory: PS5_Vulkan
         run: |
@@ -60,11 +53,11 @@ jobs:
           mirror = "https:" + "//://github.com"
           p.write_text(re.sub(r"https?://\S+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
           '
-          bash tools/setup-native-dependencies.sh
+          bash tools/setup-native-dependencies.sh --all 2>/dev/null || bash tools/setup-native-dependencies.sh
           bash tools/build-driver.sh || {
-            echo "=== PS5_Vulkan README & setup script ==="
+            echo "=== PS5_Vulkan README & tools ==="
             cat README.md
-            cat tools/setup-native-dependencies.sh
+            ls -la tools/
             exit 1
           }
 
@@ -131,3 +124,4 @@ jobs:
         with:
           name: PPSA99169-smb-fix
           path: PS5_RetroArch/dist/PPSA99169-smb-fix.zip
+
