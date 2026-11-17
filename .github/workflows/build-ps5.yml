@@ -46,9 +46,10 @@ jobs:
 
       - name: Download ps5-opengl-sdk releases (0.2.0 & 0.3.0)
         run: |
+          proto="https://"
+          host="://github.com"
           for ver in 0.2.0 0.3.0; do
-            url="https:" + "//://github.com{ver}/ps5-opengl-sdk-${ver}.tar.gz"
-            curl -fL --retry 3 "https://://github.com{ver}/ps5-opengl-sdk-${ver}.tar.gz" -o "ps5-opengl-sdk-${ver}.tar.gz" 2>/dev/null && tar -xzf "ps5-opengl-sdk-${ver}.tar.gz" || true
+            curl -fL --retry 3 "${proto}${host}/v${ver}/ps5-opengl-sdk-${ver}.tar.gz" -o "ps5-opengl-sdk-${ver}.tar.gz" && tar -xzf "ps5-opengl-sdk-${ver}.tar.gz" || true
           done
           ls -la
 
