@@ -134,6 +134,7 @@ jobs:
           bash tools/fetch-mesa.sh
           bash tools/build-psbc-ps5.sh
           bash tools/build-vulkan-runtime.sh
+          make build/host/ps5-native-tool || make
           bash tools/build-driver.sh
 
       # --------------------------------------------------
@@ -179,7 +180,6 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           bash tools/fetch-retroarch.sh
 
-          # Stage Vulkan headers and libps5vk.ps5.a into PS5_PAYLOAD_SDK for configure
           mkdir -p "$PS5_PAYLOAD_SDK/target/include" "$PS5_PAYLOAD_SDK/target/lib"
           cp -r /usr/include/vulkan /usr/include/vk_video "$PS5_PAYLOAD_SDK/target/include/" 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/PS5_Vulkan/build/driver/ps5/libps5vk.ps5.a" "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a"
