@@ -44,7 +44,14 @@ jobs:
           path: PS5_PayloadSDK
           fetch-depth: 0
 
-      - name: Build PS5_Vulkan RADV release archive
+      - name: Checkout ps5-opengl-sdk-0.2.0
+        uses: actions/checkout@v4
+        with:
+          repository: BlackBearReloaded/ps5-opengl
+          path: ps5-opengl-sdk-0.2.0
+          fetch-depth: 0
+
+      - name: Build PS5_Vulkan ps5vk driver archives
         working-directory: PS5_Vulkan
         run: |
           python3 -c '
@@ -54,7 +61,12 @@ jobs:
           p.write_text(re.sub(r"https?://\S+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
           '
           bash tools/setup-native-dependencies.sh
-          bash tools/build-radv.sh release
+          bash tools/build-driver.sh || {
+            echo "=== PS5_Vulkan README & setup script ==="
+            cat README.md
+            cat tools/setup-native-dependencies.sh
+            exit 1
+          }
 
       - name: Fetch dependencies and RetroArch sources
         working-directory: PS5_RetroArch
@@ -79,25 +91,23 @@ jobs:
           VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
           mkdir -p "$SDK/target/include" "$SDK/target/lib"
           cp -r /usr/include/vulkan /usr/include/vk_video "$SDK/target/include/" 2>/dev/null || true
-          RADV_LIB=$(find "$VULKAN_DIR" -maxdepth 4 \( -name "libradv*.a" -o -name "libvulkan*.a" \) | head -n1)
-          echo "Found Vulkan/RADV archive: $RADV_LIB"
-          if test -n "$RADV_LIB"; then
-            cp "$RADV_LIB" "$SDK/target/lib/libvulkan.a"
+          VK_LIB=$(find "$VULKAN_DIR" -maxdepth 4 \( -name "libps5vk*.a" -o -name "libvulkan*.a" \) | head -n1)
+          echo "Found ps5vk archive: $VK_LIB"
+          if test -n "$VK_LIB"; then
+            cp "$VK_LIB" "$SDK/target/lib/libvulkan.a"
           else
             echo "void vkCreateInstance(void) {}" > /tmp/vk_stub.c
             "$SDK/bin/prospero-clang" -c /tmp/vk_stub.c -o /tmp/vk_stub.o
             "$SDK/bin/llvm-ar" rcs "$SDK/target/lib/libvulkan.a" /tmp/vk_stub.o
           fi
 
-      - name: Build PS5 title package
+      - name: Build PS5 title package with ps5vk
         working-directory: PS5_RetroArch
         run: |
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
           export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
-          export PS5_VULKAN_DRIVER=radv
-          export RADV_ARCHIVE="$(find "$PS5_VULKAN_DIR" -maxdepth 4 -name "*radv*.tar*" | head -n1)"
-          echo "Using RADV_ARCHIVE=$RADV_ARCHIVE"
+          export PS5_VULKAN_DRIVER=ps5vk
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
           python3 -c '
           import pathlib, re
@@ -108,9 +118,8 @@ jobs:
           p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
           assert "__setitem__(7, 9)" in p.read_text()
           '
-          sed -i 's/ps5vk/radv/g' tools/build-title.sh Makefile
           sed -i 's/ mame / /g' tools/build-title.sh
-          bash tools/build-title.sh
+          PS5_VULKAN_DRIVER=ps5vk bash tools/build-title.sh
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
