@@ -183,7 +183,6 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           bash tools/fetch-retroarch.sh
 
-          # Stage Vulkan headers and a standalone vkCreateInstance stub for RetroArch's ./configure check
           mkdir -p "$PS5_PAYLOAD_SDK/target/include" "$PS5_PAYLOAD_SDK/target/lib"
           cp -r /usr/include/vulkan /usr/include/vk_video "$PS5_PAYLOAD_SDK/target/include/" 2>/dev/null || true
           echo "void vkCreateInstance(void) {}" > /tmp/vk_stub.c
@@ -204,6 +203,18 @@ jobs:
           set -euo pipefail
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
+
+          # Stage ps5log.h into ../prospero-win-main/native/ps5log/ for tools/build-lapy.py
+          PS5LOG_H=$(find "$GITHUB_WORKSPACE" -name "ps5log.h" | head -n1)
+          echo "Found ps5log.h at: $PS5LOG_H"
+          mkdir -p "$GITHUB_WORKSPACE/prospero-win-main/native/ps5log"
+          if test -n "$PS5LOG_H"; then
+            cp "$PS5LOG_H" "$GITHUB_WORKSPACE/prospero-win-main/native/ps5log/ps5log.h"
+          else
+            echo "=== build-lapy.py ==="
+            cat tools/build-lapy.py
+            exit 1
+          fi
 
           python3 -c '
           import pathlib, re
@@ -249,3 +260,4 @@ jobs:
             PPSA99169-ps5vk.zip.sha256
           if-no-files-found: error
           retention-days: 14
+
