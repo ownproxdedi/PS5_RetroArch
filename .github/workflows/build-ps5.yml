@@ -63,13 +63,10 @@ jobs:
           p.write_text(re.sub(r"https?://\S+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
           '
           bash tools/setup-native-dependencies.sh
-          bash tools/build-driver.sh || {
-            echo "=== build-driver.sh lines 1-60 ==="
-            head -n 60 tools/build-driver.sh
-            exit 1
-          }
+          bash tools/fetch-mesa.sh
           bash tools/build-vulkan-runtime.sh
           bash tools/build-psbc-ps5.sh
+          bash tools/build-driver.sh
 
       - name: Fetch dependencies and RetroArch sources
         working-directory: PS5_RetroArch
@@ -134,4 +131,5 @@ jobs:
         with:
           name: PPSA99169-smb-fix
           path: PS5_RetroArch/dist/PPSA99169-smb-fix.zip
+
 
