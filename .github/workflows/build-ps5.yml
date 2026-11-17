@@ -247,5 +247,3 @@ jobs:
             PPSA99169-ps5vk.zip.sha256
           if-no-files-found: error
           retention-days: 14
-
-          retention-days: 14
