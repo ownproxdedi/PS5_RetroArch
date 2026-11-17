@@ -1,4 +1,5 @@
-name: Build PS5 RetroArch
+
+name: Build PS5 RetroArch (ps5vk)
 
 on:
   workflow_dispatch:
@@ -6,141 +7,269 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
     steps:
+
+      # --------------------------------------------------
+      # 1. Install host dependencies
+      # --------------------------------------------------
+
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential clang llvm lld curl patch pkg-config binutils git cmake meson ninja-build python3 python3-mako python3-yaml glslang-tools zip unzip llvm-18-dev libclang-18-dev libclang-cpp18-dev libclc-18-dev libllvmspirvlib-18-dev libvulkan-dev vulkan-utility-libraries-dev spirv-headers libfontconfig1-dev libx11-dev
-          pipx install meson
-          pipx install ninja
 
-      - name: Checkout PS5_RetroArch
+          sudo apt-get install -y \
+            build-essential \
+            clang \
+            clang-18 \
+            llvm \
+            llvm-18 \
+            llvm-18-dev \
+            lld \
+            lld-18 \
+            libclang-18-dev \
+            libclang-cpp18-dev \
+            libclc-18-dev \
+            libllvmspirvlib-18-dev \
+            curl \
+            wget \
+            patch \
+            pkg-config \
+            binutils \
+            cmake \
+            meson \
+            ninja-build \
+            python3 \
+            python3-mako \
+            python3-yaml \
+            python3-markupsafe \
+            git \
+            rsync \
+            zip \
+            unzip \
+            tar \
+            xz-utils \
+            glslang-tools \
+            spirv-headers \
+            libvulkan-dev \
+            vulkan-utility-libraries-dev \
+            libfontconfig1-dev \
+            libx11-dev
+
+          clang --version
+          llvm-ar --version
+
+      # --------------------------------------------------
+      # 2. Checkout all repositories
+      # --------------------------------------------------
+
+      - name: Checkout PS5 RetroArch
         uses: actions/checkout@v4
         with:
           path: PS5_RetroArch
           fetch-depth: 0
 
-      - name: Checkout PS5_Vulkan
+      - name: Checkout PS5 Vulkan
         uses: actions/checkout@v4
         with:
           repository: mihawk-99/PS5_Vulkan
           path: PS5_Vulkan
           fetch-depth: 0
 
-      - name: Checkout PS5_Mesa
-        uses: actions/checkout@v4
-        with:
-          repository: mihawk-99/PS5_Mesa
-          path: PS5_Mesa
-          fetch-depth: 0
-
-      - name: Checkout PS5_PayloadSDK
+      - name: Checkout PS5 Payload SDK
         uses: actions/checkout@v4
         with:
           repository: mihawk-99/PS5_PayloadSDK
           path: PS5_PayloadSDK
           fetch-depth: 0
 
-      - name: Download ps5-opengl-sdk releases
-        run: |
-          python3 -c '
-          import json, urllib.request, tarfile, zipfile, io
-          api = "https:" + "//://github.com"
-          req = urllib.request.Request(api, headers={"User-Agent": "Mozilla/5.0"})
-          releases = json.loads(urllib.request.urlopen(req).read().decode())
-          for r in releases:
-              print("Release:", r["tag_name"], [a["name"] for a in r.get("assets", [])])
-              for a in r.get("assets", []):
-                  if a["name"].endswith(".tar.gz") or a["name"].endswith(".zip"):
-                      print("Downloading", a["browser_download_url"])
-                      data = urllib.request.urlopen(a["browser_download_url"]).read()
-                      if a["name"].endswith(".tar.gz"):
-                          with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-                              tf.extractall(".")
-                      else:
-                          with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                              zf.extractall(".")
-          '
-          ls -la
+      # Legacy SDK used to initialise the PSBC work directory.
+      - name: Checkout PS5 OpenGL SDK 0.2.0
+        uses: actions/checkout@v4
+        with:
+          repository: BlackBearReloaded/ps5-opengl
+          ref: sdk-0.2.0
+          path: ps5-opengl-sdk-0.2.0
+          fetch-depth: 0
 
-      - name: Build PS5_Vulkan ps5vk driver archives
+      # Current SDK used for the actual build.
+      - name: Checkout PS5 OpenGL SDK 0.3.0
+        uses: actions/checkout@v4
+        with:
+          repository: BlackBearReloaded/ps5-opengl
+          ref: v0.3.0
+          path: ps5-opengl-sdk-0.3.0
+          fetch-depth: 0
+
+      # --------------------------------------------------
+      # 3. Build PS5 Vulkan and ps5vk
+      # --------------------------------------------------
+
+      - name: Bootstrap PS5 Vulkan dependencies
         working-directory: PS5_Vulkan
+        shell: bash
         run: |
-          python3 -c '
-          import pathlib, re
-          p = pathlib.Path("tools/setup-native-dependencies.sh")
-          mirror = "https:" + "//zlib.net/fossils/zlib-1.3.2.tar.gz"
-          p.write_text(re.sub(r"https?://\S+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
-          '
+          set -euo pipefail
+
+          export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
+
+          echo "======================================"
+          echo "Setting up PS5 Payload SDK"
+          echo "======================================"
+
           bash tools/setup-native-dependencies.sh
-          bash tools/fetch-mesa.sh
-          bash tools/build-vulkan-runtime.sh
+
+          echo "======================================"
+          echo "Initial PSBC build using SDK 0.2.0"
+          echo "======================================"
+
           bash tools/build-psbc-ps5.sh
+
+          echo "======================================"
+          echo "Adapting PS5 OpenGL SDK 0.3.0"
+          echo "======================================"
+
+          bash tools/adapt-opengl-sdk.sh ../ps5-opengl-sdk-0.3.0
+
+          test -f .deps/native/opengl-sdk/dependencies.json
+
+          echo "======================================"
+          echo "Fetching pinned Mesa sources"
+          echo "======================================"
+
+          bash tools/fetch-mesa.sh
+
+          echo "======================================"
+          echo "Building PSBC against SDK 0.3.0"
+          echo "======================================"
+
+          bash tools/build-psbc-ps5.sh
+
+          echo "======================================"
+          echo "Building Vulkan runtime"
+          echo "======================================"
+
+          bash tools/build-vulkan-runtime.sh
+
+          echo "======================================"
+          echo "Building ps5vk driver"
+          echo "======================================"
+
           bash tools/build-driver.sh
 
-      - name: Fetch dependencies and RetroArch sources
-        working-directory: PS5_RetroArch
-        run: |
-          python3 -c '
-          import pathlib, re
-          p = pathlib.Path("tools/setup-native-dependencies.sh")
-          mirror = "https:" + "//zlib.net/fossils/zlib-1.3.2.tar.gz"
-          p.write_text(re.sub(r"https?://\S+zlib-1\.3\.2\.tar\.gz", mirror, p.read_text()))
-          '
-          make deps
-          rm -rf vendor/retroarch
-          sed -i 's|libretro-common/include/retroarch.h|retroarch.h|g' tools/fetch-retroarch.sh
-          export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
-          export PS5_CLANG=/usr/bin/clang
-          bash tools/fetch-retroarch.sh
+      # --------------------------------------------------
+      # 4. Verify Vulkan archives
+      # --------------------------------------------------
 
-      - name: Stage Vulkan headers and archive into PS5_PAYLOAD_SDK
-        working-directory: PS5_RetroArch
+      - name: Verify ps5vk build outputs
+        working-directory: PS5_Vulkan
+        shell: bash
         run: |
-          SDK="$PWD/.deps/native/ps5-payload-sdk"
-          VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
-          mkdir -p "$SDK/target/include" "$SDK/target/lib"
-          cp -r /usr/include/vulkan /usr/include/vk_video "$SDK/target/include/" 2>/dev/null || true
-          VK_LIB=$(find "$VULKAN_DIR" -maxdepth 4 \( -name "libps5vk*.a" -o -name "libvulkan*.a" \) | head -n1)
-          echo "Found ps5vk archive: $VK_LIB"
-          if test -n "$VK_LIB"; then
-            cp "$VK_LIB" "$SDK/target/lib/libvulkan.a"
-          else
-            echo "void vkCreateInstance(void) {}" > /tmp/vk_stub.c
-            "$SDK/bin/prospero-clang" -c /tmp/vk_stub.c -o /tmp/vk_stub.o
-            "$SDK/bin/llvm-ar" rcs "$SDK/target/lib/libvulkan.a" /tmp/vk_stub.o
+          set -euo pipefail
+
+          required_files=(
+            build/driver/ps5/libps5vk.ps5.a
+            .deps/native/vulkan-runtime/lib/libvk_runtime.ps5.a
+            build/driver/ps5/libpsbc_driver.ps5.a
+            .deps/native/psbc/lib/libpsbc_support.ps5.a
+            build/driver/ps5/libvulkan.so.1
+          )
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -s "$file" ]]; then
+              echo "ERROR: Missing or empty build output: $file"
+              exit 1
+            fi
+
+            echo "OK: $file ($(stat -c%s "$file") bytes)"
+          done
+
+          echo "All ps5vk build outputs verified."
+
+      # --------------------------------------------------
+      # 5. Fetch RetroArch dependencies
+      # --------------------------------------------------
+
+      - name: Fetch RetroArch dependencies
+        working-directory: PS5_RetroArch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          make deps
+
+      # --------------------------------------------------
+      # 6. Build RetroArch using ps5vk
+      # --------------------------------------------------
+
+      - name: Build PS5 RetroArch title
+        working-directory: PS5_RetroArch
+        shell: bash
+        env:
+          PS5_VULKAN_DIR: ${{ github.workspace }}/PS5_Vulkan
+          PS5_VULKAN_DRIVER: ps5vk
+          PS5_CLANG: /usr/bin/clang
+        run: |
+          set -euo pipefail
+
+          echo "======================================"
+          echo "Building RetroArch with ps5vk"
+          echo "======================================"
+
+          bash tools/build-title.sh
+
+          echo "======================================"
+          echo "Checking title output"
+          echo "======================================"
+
+          if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
+            echo "ERROR: eboot.bin missing!"
+            exit 1
           fi
 
-      - name: Build PS5 title package with ps5vk
-        working-directory: PS5_RetroArch
-        run: |
-          export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
-          export PS5_CLANG=/usr/bin/clang
-          export PS5_VULKAN_DIR="$(cd ../PS5_Vulkan && pwd)"
-          export PS5_VULKAN_DRIVER=ps5vk
-          export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
-          python3 -c '
-          import pathlib, re
-          p = pathlib.Path("tools/check-core.py")
-          txt = p.read_text()
-          def add_fix(m):
-              return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b.__getitem__(7) == 0:\n        b.__setitem__(7, 9)\n        path.write_bytes(b)\n"
-          p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
-          assert "__setitem__(7, 9)" in p.read_text()
-          '
-          sed -i 's/ mame / /g' tools/build-title.sh
-          PS5_VULKAN_DRIVER=ps5vk bash tools/build-title.sh
+          if [[ ! -f dist/PPSA99169/libvulkan.so.1 ]]; then
+            echo "ERROR: ps5vk shared library missing!"
+            exit 1
+          fi
+
+          echo "RetroArch title built successfully."
+
+      # --------------------------------------------------
+      # 7. Package PPSA99169
+      # --------------------------------------------------
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
+        shell: bash
         run: |
-          zip -r PPSA99169-smb-fix.zip PPSA99169/
+          set -euo pipefail
+
+          test -d PPSA99169
+
+          zip -qr "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" PPSA99169
+
+          sha256sum "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" \
+            > "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip.sha256"
+
+          ls -lh "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip"
+
+      # --------------------------------------------------
+      # 8. Upload artifact
+      # --------------------------------------------------
 
       - name: Upload compiled PS5 package
         uses: actions/upload-artifact@v4
         with:
-          name: PPSA99169-smb-fix
-          path: PS5_RetroArch/dist/PPSA99169-smb-fix.zip
+          name: PPSA99169-ps5vk
+          path: |
+            PPSA99169-ps5vk.zip
+            PPSA99169-ps5vk.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
