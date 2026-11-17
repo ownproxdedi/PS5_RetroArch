@@ -44,6 +44,14 @@ jobs:
           path: PS5_PayloadSDK
           fetch-depth: 0
 
+      - name: Download ps5-opengl-sdk releases (0.2.0 & 0.3.0)
+        run: |
+          for ver in 0.2.0 0.3.0; do
+            url="https:" + "//://github.com{ver}/ps5-opengl-sdk-${ver}.tar.gz"
+            curl -fL --retry 3 "https://://github.com{ver}/ps5-opengl-sdk-${ver}.tar.gz" -o "ps5-opengl-sdk-${ver}.tar.gz" 2>/dev/null && tar -xzf "ps5-opengl-sdk-${ver}.tar.gz" || true
+          done
+          ls -la
+
       - name: Build PS5_Vulkan ps5vk driver archives
         working-directory: PS5_Vulkan
         run: |
@@ -55,10 +63,8 @@ jobs:
           '
           bash tools/setup-native-dependencies.sh
           bash tools/build-driver.sh || {
-            echo "=== build-driver.sh top ==="
+            echo "=== build-driver.sh lines 1-60 ==="
             head -n 60 tools/build-driver.sh
-            echo "=== adapt-opengl-sdk.sh top ==="
-            head -n 50 tools/adapt-opengl-sdk.sh
             exit 1
           }
           bash tools/build-vulkan-runtime.sh
