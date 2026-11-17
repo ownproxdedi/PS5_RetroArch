@@ -135,15 +135,9 @@ jobs:
           bash tools/build-psbc-ps5.sh
           bash tools/build-vulkan-runtime.sh
 
-          TOOL_SRC=$(find tooling tools -name "*native*tool*.c*" -o -name "*ps5*tool*.c*" 2>/dev/null | head -n1)
-          echo "Found host tool source: $TOOL_SRC"
-          grep -rn "ps5-native-tool" Makefile tools/ || true
-          mkdir -p build/host
-          if test -n "$TOOL_SRC"; then
-            g++ -O2 -std=c++17 "$TOOL_SRC" -o build/host/ps5-native-tool
-          else
-            make build/host/ps5-native-tool
-          fi
+          # Compile build/host/ps5-native-tool via tools/build.sh
+          bash tools/build.sh || true
+          test -x build/host/ps5-native-tool
 
           bash tools/build-driver.sh
 
@@ -252,4 +246,6 @@ jobs:
             PPSA99169-ps5vk.zip
             PPSA99169-ps5vk.zip.sha256
           if-no-files-found: error
+          retention-days: 14
+
           retention-days: 14
