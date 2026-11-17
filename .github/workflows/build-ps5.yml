@@ -44,13 +44,26 @@ jobs:
           path: PS5_PayloadSDK
           fetch-depth: 0
 
-      - name: Download ps5-opengl-sdk releases (0.2.0 & 0.3.0)
+      - name: Download ps5-opengl-sdk releases
         run: |
-          proto="https://"
-          host="://github.com"
-          for ver in 0.2.0 0.3.0; do
-            curl -fL --retry 3 "${proto}${host}/v${ver}/ps5-opengl-sdk-${ver}.tar.gz" -o "ps5-opengl-sdk-${ver}.tar.gz" && tar -xzf "ps5-opengl-sdk-${ver}.tar.gz" || true
-          done
+          python3 -c '
+          import json, urllib.request, tarfile, zipfile, io
+          api = "https:" + "//://github.com"
+          req = urllib.request.Request(api, headers={"User-Agent": "Mozilla/5.0"})
+          releases = json.loads(urllib.request.urlopen(req).read().decode())
+          for r in releases:
+              print("Release:", r["tag_name"], [a["name"] for a in r.get("assets", [])])
+              for a in r.get("assets", []):
+                  if a["name"].endswith(".tar.gz") or a["name"].endswith(".zip"):
+                      print("Downloading", a["browser_download_url"])
+                      data = urllib.request.urlopen(a["browser_download_url"]).read()
+                      if a["name"].endswith(".tar.gz"):
+                          with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+                              tf.extractall(".")
+                      else:
+                          with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                              zf.extractall(".")
+          '
           ls -la
 
       - name: Build PS5_Vulkan ps5vk driver archives
@@ -131,5 +144,3 @@ jobs:
         with:
           name: PPSA99169-smb-fix
           path: PS5_RetroArch/dist/PPSA99169-smb-fix.zip
-
-
