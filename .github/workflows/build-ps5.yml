@@ -135,7 +135,6 @@ jobs:
           bash tools/build-psbc-ps5.sh
           bash tools/build-vulkan-runtime.sh
 
-          # Compile build/host/ps5-native-tool via tools/build.sh
           bash tools/build.sh || true
           test -x build/host/ps5-native-tool
 
@@ -184,9 +183,12 @@ jobs:
           export PS5_CLANG=/usr/bin/clang
           bash tools/fetch-retroarch.sh
 
+          # Stage Vulkan headers and a standalone vkCreateInstance stub for RetroArch's ./configure check
           mkdir -p "$PS5_PAYLOAD_SDK/target/include" "$PS5_PAYLOAD_SDK/target/lib"
           cp -r /usr/include/vulkan /usr/include/vk_video "$PS5_PAYLOAD_SDK/target/include/" 2>/dev/null || true
-          cp "$GITHUB_WORKSPACE/PS5_Vulkan/build/driver/ps5/libps5vk.ps5.a" "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a"
+          echo "void vkCreateInstance(void) {}" > /tmp/vk_stub.c
+          "$PS5_PAYLOAD_SDK/bin/prospero-clang" -c /tmp/vk_stub.c -o /tmp/vk_stub.o
+          "$PS5_PAYLOAD_SDK/bin/llvm-ar" rcs "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" /tmp/vk_stub.o
 
       # --------------------------------------------------
       # 7. Build RetroArch using ps5vk
