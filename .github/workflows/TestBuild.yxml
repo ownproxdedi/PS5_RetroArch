@@ -110,7 +110,7 @@ jobs:
             PS5_Vulkan/.deps
             PS5_Vulkan/build/driver/ps5
             PS5_Vulkan/build/host/ps5-native-tool
-          key: ps5vk-opengl-${{ hashFiles('PS5_Vulkan/tools/**', 'ps5-opengl-src/dependencies.json') }}-v1
+          key: ps5vk-opengl-static-v1
 
       # --------------------------------------------------
       # 4. Build PS5 OpenGL SDK (skipped on cache hit)
@@ -199,7 +199,7 @@ jobs:
             PS5_Vulkan/.deps
             PS5_Vulkan/build/driver/ps5
             PS5_Vulkan/build/host/ps5-native-tool
-          key: ${{ steps.cache-ps5vk.outputs.cache-primary-key }}
+          key: ps5vk-opengl-static-v1
 
       # --------------------------------------------------
       # 7. Fetch RetroArch dependencies & sources
@@ -269,7 +269,7 @@ jobs:
           def add_fix(m):
               return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b.__getitem__(7) == 0:\n        b.__setitem__(7, 9)\n        path.write_bytes(b)\n"
           p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
-          assert "setitem(7, 9)" in p.read_text()
+          assert "__setitem__(7, 9)" in p.read_text()
           '
           # Restrict build and metadata generation to mgba only for fast testing
           python3 -c '
