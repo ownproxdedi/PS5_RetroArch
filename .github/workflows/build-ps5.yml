@@ -208,8 +208,8 @@ jobs:
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
 
-          # Pass --wrap=pthread_* in Makefile for libps5platform.a
-          sed -i 's|-lps5platform|-lps5platform -Wl,--wrap=pthread_create,--wrap=pthread_join,--wrap=pthread_detach|g' Makefile
+          # Append --wrap=pthread_* to LDFLAGS in Makefile so ld.lld resolves __real_pthread_*
+          printf '\nLDFLAGS += -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -Wl,--wrap=pthread_detach\n' >> Makefile
 
           # Skip optional external Lapy daemon build (requires private sibling repos)
           printf '#!/usr/bin/env python3\nimport sys; sys.exit(0)\n' > tools/build-lapy.py
@@ -243,10 +243,10 @@ jobs:
         run: |
           set -euo pipefail
           test -d PPSA99169
-          zip -qr "$GITHUB_WORKSPACE/PPSA99169-SMB-FIX.zip" PPSA99169
-          sha256sum "$GITHUB_WORKSPACE/PPSA99169-SMB-FIX.zip" \
-            > "$GITHUB_WORKSPACE/PPSA99169-SMB-FIX.zip.sha256"
-          ls -lh "$GITHUB_WORKSPACE/PPSA99169-SMB-FIX.zip"
+          zip -qr "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" PPSA99169
+          sha256sum "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" \
+            > "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip.sha256"
+          ls -lh "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip"
 
       # --------------------------------------------------
       # 9. Upload artifact
@@ -254,9 +254,9 @@ jobs:
       - name: Upload compiled PS5 package
         uses: actions/upload-artifact@v4
         with:
-          name: PPSA99169-SMB-FIX
+          name: PPSA99169-ps5vk
           path: |
-            PPSA99169-SMB-FIX.zip
-            PPSA99169-SMB-FIX.zip.sha256
+            PPSA99169-ps5vk.zip
+            PPSA99169-ps5vk.zip.sha256
           if-no-files-found: error
           retention-days: 14
