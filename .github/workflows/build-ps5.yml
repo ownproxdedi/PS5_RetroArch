@@ -1,4 +1,4 @@
-name: Build PS5 RetroArch (ps5vk)
+name: Build PS5 RetroArch (ps5vk + MihawkGen)
 
 on:
   workflow_dispatch:
@@ -75,6 +75,13 @@ jobs:
         with:
           repository: mihawk-99/PS5_Vulkan
           path: PS5_Vulkan
+          fetch-depth: 0
+
+      - name: Checkout PS5 MihawkGen (Frame Generation)
+        uses: actions/checkout@v4
+        with:
+          repository: mihawk-99/PS5_MihawkGen
+          path: PS5_MihawkGen
           fetch-depth: 0
 
       - name: Checkout PS5 Payload SDK
@@ -186,13 +193,14 @@ jobs:
           "$PS5_PAYLOAD_SDK/bin/llvm-ar" rcs "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" /tmp/vk_stub.o
 
       # --------------------------------------------------
-      # 7. Build RetroArch using ps5vk
+      # 7. Build RetroArch using ps5vk + PS5_MihawkGen
       # --------------------------------------------------
       - name: Build PS5 RetroArch title
         working-directory: PS5_RetroArch
         shell: bash
         env:
           PS5_VULKAN_DIR: ${{ github.workspace }}/PS5_Vulkan
+          PS5_FRAMEGEN: ${{ github.workspace }}/PS5_MihawkGen
           PS5_VULKAN_DRIVER: ps5vk
           PS5_CLANG: /usr/bin/clang
         run: |
@@ -200,31 +208,8 @@ jobs:
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
 
-          # Build stubs for optional PS5_MihawkGen framegen symbols
-          cat << 'EOF' > /tmp/ps5_fg_stubs.c
-          #include <stdint.h>
-          void *vk_framegen_new(void *a, void *b, void *c) { return 0; }
-          void vk_framegen_free(void *a) {}
-          void vk_framegen_options(void *a, void *b) {}
-          void vk_framegen_invalidate(void *a) {}
-          void vk_framegen_begin_group(void *a) {}
-          int vk_framegen_hold(void *a) { return 0; }
-          int vk_framegen_call_presents(void *a) { return 0; }
-          void vk_framegen_picture(void *a, void *b) {}
-          int vk_framegen_generate(void *a, void *b, void *c) { return 0; }
-          void vk_framegen_commit(void *a) {}
-          void *vk_framegen_current(void *a) { return 0; }
-          void vk_framegen_record(void *a, void *b) {}
-          int vk_framegen_unique(void *a) { return 0; }
-          void vk_framegen_governor(void *a) {}
-          void vk_framegen_stats(void *a, void *b) {}
-          void ps5_fg_record_request(void) {}
-          EOF
-          "$PS5_PAYLOAD_SDK/bin/prospero-clang" -c /tmp/ps5_fg_stubs.c -o /tmp/ps5_fg_stubs.o
-          "$PS5_PAYLOAD_SDK/bin/llvm-ar" rcs "$PS5_PAYLOAD_SDK/target/lib/libps5_fg_stubs.a" /tmp/ps5_fg_stubs.o
-
-          # Pass --wrap=pthread_* and -lps5_fg_stubs in Makefile
-          sed -i 's|-lps5platform|-lps5platform -lps5_fg_stubs -Wl,--wrap=pthread_create,--wrap=pthread_join,--wrap=pthread_detach|g' Makefile
+          # Pass --wrap=pthread_* in Makefile for libps5platform.a
+          sed -i 's|-lps5platform|-lps5platform -Wl,--wrap=pthread_create,--wrap=pthread_join,--wrap=pthread_detach|g' Makefile
 
           # Skip optional external Lapy daemon build (requires private sibling repos)
           printf '#!/usr/bin/env python3\nimport sys; sys.exit(0)\n' > tools/build-lapy.py
