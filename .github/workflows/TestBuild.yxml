@@ -260,12 +260,18 @@ jobs:
           python3 -c '
           import pathlib, re
           bt = pathlib.Path("tools/build-title.sh")
-          bt.write_text(re.sub(r"core_names=\([^)]*\)", "core_names=(mgba)", bt.read_text(), count=1, flags=re.S))
+          txt = bt.read_text()
+          start = txt.index("core_names=(")
+          end = txt.index(")", start) + 1
+          bt.write_text(txt[:start] + "core_names=(mgba)" + txt[end:])
+          assert "core_names=(mgba)" in bt.read_text()
+
           gm = pathlib.Path("tools/generate-core-metadata.py")
-          txt = gm.read_text()
-          txt = "\n".join(line for line in txt.splitlines() if not re.search(r"^\s*\x27(?!mgba)[a-z0-9_]+\x27\s*:", line))
-          gm.write_text(txt)
+          gm_txt = gm.read_text()
+          gm_txt = "\n".join(line for line in gm_txt.splitlines() if not re.search(r"^\s*\x27(?!mgba)[a-z0-9_]+\x27\s*:", line))
+          gm.write_text(gm_txt)
           '
+
           bash tools/build-title.sh
           if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
           echo "ERROR: eboot.bin missing!"
