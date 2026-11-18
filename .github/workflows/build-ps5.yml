@@ -211,8 +211,23 @@ jobs:
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
 
-          # Append --wrap=pthread_* to LDFLAGS in Makefile so ld.lld resolves __real_pthread_*
-          printf '\nLDFLAGS += -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -Wl,--wrap=pthread_detach\n' >> Makefile
+          # Inject --wrap=pthread_* into prosper-clang wrapper when linking (-o without -c)
+          for cc in "$PS5_PAYLOAD_SDK/bin/prospero-clang" "$PS5_PAYLOAD_SDK/bin/prospero-clang++"; do
+            if [ -f "$cc" ] && ! grep -q "wrap=pthread_create" "$cc"; then
+              mv "$cc" "${cc}.orig"
+              cat << 'EOF' > "$cc"
+          #!/usr/bin/env bash
+          extra=()
+          for arg in "$@"; do
+            if [[ "$arg" == "-c" || "$arg" == "-E" || "$arg" == "-S" ]]; then
+              exec "${0}.orig" "$@"
+            fi
+          done
+          exec "${0}.orig" -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -Wl,--wrap=pthread_detach "$@"
+          EOF
+              chmod +x "$cc"
+            fi
+          done
 
           # Skip optional external Lapy daemon build (requires private sibling repos)
           printf '#!/usr/bin/env python3\nimport sys; sys.exit(0)\n' > tools/build-lapy.py
@@ -263,4 +278,3 @@ jobs:
             PPSA99169-ps5vk.zip.sha256
           if-no-files-found: error
           retention-days: 14
-
