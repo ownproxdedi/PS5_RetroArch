@@ -110,7 +110,7 @@ jobs:
             PS5_Vulkan/.deps
             PS5_Vulkan/build/driver/ps5
             PS5_Vulkan/build/host/ps5-native-tool
-          key: ps5vk-opengl-${{ hashFiles('PS5_Vulkan/tools/**', 'ps5-opengl-src/dependencies.json') }}-v1
+          key: ps5vk-opengl-${{ hashFiles('PS5_Vulkan/tools/**', 'ps5-opengl-src/dependencies.json') }}-v2
 
       # --------------------------------------------------
       # 4. Build PS5 OpenGL SDK (skipped on cache hit)
@@ -271,11 +271,10 @@ jobs:
           gm_txt = "\n".join(line for line in gm_txt.splitlines() if not re.search(r"^\s*\x27(?!mgba)[a-z0-9_]+\x27\s*:", line))
           gm.write_text(gm_txt)
           '
-
           bash tools/build-title.sh
           if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
-          echo "ERROR: eboot.bin missing!"
-          exit 1
+            echo "ERROR: eboot.bin missing!"
+            exit 1
           fi
           echo "RetroArch title (mGBA test) built successfully."
           # --------------------------------------------------
