@@ -243,10 +243,10 @@ jobs:
         run: |
           set -euo pipefail
           test -d PPSA99169
-          zip -qr "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" PPSA99169
-          sha256sum "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" \
-            > "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip.sha256"
-          ls -lh "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip"
+          zip -qr "$GITHUB_WORKSPACE/PPSA99169-SMB-FIX.zip" PPSA99169
+          sha256sum "$GITHUB_WORKSPACE/PPSA99169-SMB-FIX.zip" \
+            > "$GITHUB_WORKSPACE/PPSA99169-SMB-FIX.zip.sha256"
+          ls -lh "$GITHUB_WORKSPACE/PPSA99169-SMB-FIX.zip"
 
       # --------------------------------------------------
       # 9. Upload artifact
@@ -254,9 +254,9 @@ jobs:
       - name: Upload compiled PS5 package
         uses: actions/upload-artifact@v4
         with:
-          name: PPSA99169-ps5vk
+          name: PPSA99169-SMB-FIX
           path: |
-            PPSA99169-ps5vk.zip
-            PPSA99169-ps5vk.zip.sha256
+            PPSA99169-SMB-FIX.zip
+            PPSA99169-SMB-FIX.zip.sha256
           if-no-files-found: error
           retention-days: 14
