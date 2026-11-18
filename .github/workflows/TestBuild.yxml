@@ -1,4 +1,4 @@
-name: Build PS5 RetroArch (ps5vk + MihawkGen - Gambatte Test)
+name: Build PS5 RetroArch (ps5vk + MihawkGen - mGBA Test)
 
 on:
   workflow_dispatch:
@@ -99,9 +99,24 @@ jobs:
           fetch-depth: 0
 
       # --------------------------------------------------
-      # 3. Build PS5 OpenGL SDK from darkxex/ps5-opengl
+      # 3. Restore cached OpenGL SDK & ps5vk driver outputs
+      # --------------------------------------------------
+      - name: Cache PS5 OpenGL SDK & ps5vk archives
+        id: cache-ps5vk
+        uses: actions/cache@v4
+        with:
+          path: |
+            ps5-opengl-sdk-cached
+            PS5_Vulkan/.deps
+            PS5_Vulkan/build/driver/ps5
+            PS5_Vulkan/build/host/ps5-native-tool
+          key: ps5vk-opengl-${{ hashFiles('PS5_Vulkan/tools/**', 'ps5-opengl-src/dependencies.json') }}-v1
+
+      # --------------------------------------------------
+      # 4. Build PS5 OpenGL SDK (skipped on cache hit)
       # --------------------------------------------------
       - name: Build PS5 OpenGL SDK
+        if: steps.cache-ps5vk.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -123,17 +138,20 @@ jobs:
           make sdk-gl46 || make sdk
           SDK_OUT=$(find build -maxdepth 3 -name "dependencies.json" -printf '%h\n' | head -n1)
           echo "Built OpenGL SDK at: $SDK_OUT"
-          ln -sfn "$PWD/$SDK_OUT" "$GITHUB_WORKSPACE/ps5-opengl-sdk-0.2.0"
-          ln -sfn "$PWD/$SDK_OUT" "$GITHUB_WORKSPACE/ps5-opengl-sdk-0.3.0"
+          rm -rf "$GITHUB_WORKSPACE/ps5-opengl-sdk-cached"
+          cp -r "$PWD/$SDK_OUT" "$GITHUB_WORKSPACE/ps5-opengl-sdk-cached"
 
       # --------------------------------------------------
-      # 4. Build PS5 Vulkan and ps5vk
+      # 5. Link OpenGL SDK & build ps5vk (skipped on cache hit)
       # --------------------------------------------------
       - name: Bootstrap PS5 Vulkan dependencies
+        if: steps.cache-ps5vk.outputs.cache-hit != 'true'
         working-directory: PS5_Vulkan
         shell: bash
         run: |
           set -euo pipefail
+          ln -sfn "$GITHUB_WORKSPACE/ps5-opengl-sdk-cached" "$GITHUB_WORKSPACE/ps5-opengl-sdk-0.2.0"
+          ln -sfn "$GITHUB_WORKSPACE/ps5-opengl-sdk-cached" "$GITHUB_WORKSPACE/ps5-opengl-sdk-0.3.0"
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
 
@@ -151,7 +169,7 @@ jobs:
           bash tools/build-driver.sh
 
       # --------------------------------------------------
-      # 5. Verify Vulkan archives
+      # 6. Verify Vulkan archives
       # --------------------------------------------------
       - name: Verify ps5vk build outputs
         working-directory: PS5_Vulkan
@@ -173,7 +191,7 @@ jobs:
           done
 
       # --------------------------------------------------
-      # 6. Fetch RetroArch dependencies & sources
+      # 7. Fetch RetroArch dependencies & sources
       # --------------------------------------------------
       - name: Fetch RetroArch dependencies and sources
         working-directory: PS5_RetroArch
@@ -196,9 +214,9 @@ jobs:
           "$PS5_PAYLOAD_SDK/bin/llvm-ar" rcs "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" /tmp/vk_stub.o
 
       # --------------------------------------------------
-      # 7. Build RetroArch using ps5vk + PS5_MihawkGen (Gambatte only)
+      # 8. Build RetroArch using ps5vk + PS5_MihawkGen (mGBA test)
       # --------------------------------------------------
-      - name: Build PS5 RetroArch title (Gambatte test)
+      - name: Build PS5 RetroArch title (mGBA test)
         working-directory: PS5_RetroArch
         shell: bash
         env:
@@ -238,48 +256,44 @@ jobs:
           assert "__setitem__(7, 9)" in p.read_text()
           '
 
-          # Restrict build and metadata generation to gambatte only for fast testing
+          # Restrict build and metadata generation to mgba only for fast testing
           python3 -c '
           import pathlib, re
           bt = pathlib.Path("tools/build-title.sh")
-          bt.write_text(re.sub(r"CORES=\([^)]*\)", "CORES=(gambatte)", bt.read_text(), flags=re.S))
+          bt.write_text(re.sub(r"core_names=\([^)]*\)", "core_names=(mgba)", bt.read_text(), count=1, flags=re.S))
           gm = pathlib.Path("tools/generate-core-metadata.py")
           txt = gm.read_text()
-          txt = "\n".join(line for line in txt.splitlines() if not re.search(r"^\s*\x27(?!gambatte)[a-z0-9_]+\x27\s*:", line))
+          txt = "\n".join(line for line in txt.splitlines() if not re.search(r"^\s*\x27(?!mgba)[a-z0-9_]+\x27\s*:", line))
           gm.write_text(txt)
           '
-
           bash tools/build-title.sh
-
           if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
-            echo "ERROR: eboot.bin missing!"
-            exit 1
+          echo "ERROR: eboot.bin missing!"
+          exit 1
           fi
-          echo "RetroArch title (Gambatte test) built successfully."
-
-      # --------------------------------------------------
-      # 8. Package PPSA99169
-      # --------------------------------------------------
-      - name: Package PPSA99169
-        working-directory: PS5_RetroArch/dist
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -d PPSA99169
-          zip -qr "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" PPSA99169
-          sha256sum "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" \
+          echo "RetroArch title (mGBA test) built successfully."
+          # --------------------------------------------------
+          # 9. Package PPSA99169
+          # --------------------------------------------------
+          - name: Package PPSA99169
+          working-directory: PS5_RetroArch/dist
+          shell: bash
+          run: |
+            set -euo pipefail
+            test -d PPSA99169
+            zip -qr "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" PPSA99169
+            sha256sum "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" 
             > "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip.sha256"
-          ls -lh "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip"
-
-      # --------------------------------------------------
-      # 9. Upload artifact
-      # --------------------------------------------------
-      - name: Upload compiled PS5 package
-        uses: actions/upload-artifact@v4
-        with:
+            ls -lh "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip"
+          # --------------------------------------------------
+          # 10. Upload artifact
+          # --------------------------------------------------
+          - name: Upload compiled PS5 package
+          uses: actions/upload-artifact@v4
+          with:
           name: PPSA99169-ps5vk
           path: |
             PPSA99169-ps5vk.zip
             PPSA99169-ps5vk.zip.sha256
-          if-no-files-found: error
+            if-no-files-found: error
           retention-days: 14
