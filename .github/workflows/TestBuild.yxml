@@ -101,9 +101,9 @@ jobs:
       # --------------------------------------------------
       # 3. Restore cached OpenGL SDK & ps5vk driver outputs
       # --------------------------------------------------
-      - name: Cache PS5 OpenGL SDK & ps5vk archives
+      - name: Restore PS5 OpenGL SDK & ps5vk cache
         id: cache-ps5vk
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             ps5-opengl-sdk-cached
@@ -169,7 +169,7 @@ jobs:
           bash tools/build-driver.sh
 
       # --------------------------------------------------
-      # 6. Verify Vulkan archives
+      # 6. Verify & save Vulkan cache immediately
       # --------------------------------------------------
       - name: Verify ps5vk build outputs
         working-directory: PS5_Vulkan
@@ -189,6 +189,17 @@ jobs:
             fi
             echo "OK: $file ($(stat -c%s "$file") bytes)"
           done
+
+      - name: Save PS5 OpenGL SDK & ps5vk cache immediately
+        if: steps.cache-ps5vk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ps5-opengl-sdk-cached
+            PS5_Vulkan/.deps
+            PS5_Vulkan/build/driver/ps5
+            PS5_Vulkan/build/host/ps5-native-tool
+          key: ${{ steps.cache-ps5vk.outputs.cache-primary-key }}
 
       # --------------------------------------------------
       # 7. Fetch RetroArch dependencies & sources
@@ -265,7 +276,6 @@ jobs:
           end = txt.index(")", start) + 1
           bt.write_text(txt[:start] + "core_names=(mgba)" + txt[end:])
           assert "core_names=(mgba)" in bt.read_text()
-
           gm = pathlib.Path("tools/generate-core-metadata.py")
           gm_txt = gm.read_text()
           gm_txt = "\n".join(line for line in gm_txt.splitlines() if not re.search(r"^\s*\x27(?!mgba)[a-z0-9_]+\x27\s*:", line))
