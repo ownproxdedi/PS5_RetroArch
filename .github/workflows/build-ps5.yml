@@ -214,6 +214,7 @@ jobs:
           assert "__setitem__(7, 9)" in p.read_text()
           '
           sed -i 's/ mame / /g' tools/build-title.sh
+          sed -i '/mame/d' tools/generate-core-metadata.py
           bash tools/build-title.sh
 
           if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
