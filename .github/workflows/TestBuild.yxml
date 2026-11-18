@@ -110,7 +110,7 @@ jobs:
             PS5_Vulkan/.deps
             PS5_Vulkan/build/driver/ps5
             PS5_Vulkan/build/host/ps5-native-tool
-          key: ps5vk-opengl-${{ hashFiles('PS5_Vulkan/tools/**', 'ps5-opengl-src/dependencies.json') }}-v2
+          key: ps5vk-opengl-${{ hashFiles('PS5_Vulkan/tools/**', 'ps5-opengl-src/dependencies.json') }}-v1
 
       # --------------------------------------------------
       # 4. Build PS5 OpenGL SDK (skipped on cache hit)
