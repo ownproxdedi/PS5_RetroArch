@@ -209,26 +209,20 @@ jobs:
         run: |
           set -euo pipefail
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
-          export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
-
-          # Inject --wrap=pthread_* only when linking against libps5platform
-          for cc in "$PS5_PAYLOAD_SDK/bin/prospero-clang" "$PS5_PAYLOAD_SDK/bin/prospero-clang++"; do
-            if [ -f "$cc" ] && ! grep -q "wrap=pthread_create" "$cc"; then
-              mv "$cc" "${cc}.orig"
-              cat << 'EOF' > "$cc"
+          mkdir -p /tmp/ps5-ld-wrap
+          cat << 'EOF' > /tmp/ps5-ld-wrap/ld.lld
           #!/usr/bin/env bash
           case " $* " in
-            *"libps5platform"*|*"-lps5platform"*)
-              exec "${0}.orig" -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -Wl,--wrap=pthread_detach "$@"
+            *"libps5platform"*)
+              exec /usr/bin/ld.lld --wrap=pthread_create --wrap=pthread_join --wrap=pthread_detach "$@"
               ;;
             *)
-              exec "${0}.orig" "$@"
+              exec /usr/bin/ld.lld "$@"
               ;;
           esac
           EOF
-              chmod +x "$cc"
-            fi
-          done
+          chmod +x /tmp/ps5-ld-wrap/ld.lld
+          export PATH="/tmp/ps5-ld-wrap:$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
 
           # Skip optional external Lapy daemon build (requires private sibling repos)
           printf '#!/usr/bin/env python3\nimport sys; sys.exit(0)\n' > tools/build-lapy.py
