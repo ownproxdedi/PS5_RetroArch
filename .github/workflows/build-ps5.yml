@@ -211,19 +211,20 @@ jobs:
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
 
-          # Inject --wrap=pthread_* into prosper-clang wrapper when linking (-o without -c)
+          # Inject --wrap=pthread_* only when linking against libps5platform
           for cc in "$PS5_PAYLOAD_SDK/bin/prospero-clang" "$PS5_PAYLOAD_SDK/bin/prospero-clang++"; do
             if [ -f "$cc" ] && ! grep -q "wrap=pthread_create" "$cc"; then
               mv "$cc" "${cc}.orig"
               cat << 'EOF' > "$cc"
           #!/usr/bin/env bash
-          extra=()
-          for arg in "$@"; do
-            if [[ "$arg" == "-c" || "$arg" == "-E" || "$arg" == "-S" ]]; then
+          case " $* " in
+            *"libps5platform"*|*"-lps5platform"*)
+              exec "${0}.orig" -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -Wl,--wrap=pthread_detach "$@"
+              ;;
+            *)
               exec "${0}.orig" "$@"
-            fi
-          done
-          exec "${0}.orig" -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -Wl,--wrap=pthread_detach "$@"
+              ;;
+          esac
           EOF
               chmod +x "$cc"
             fi
