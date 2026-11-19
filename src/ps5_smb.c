@@ -291,14 +291,14 @@ void ps5_smb_arc4random_buf(void *buf, size_t n) {
     for (size_t i = 0; i < n; i++) p[i] = (uint8_t)(rand() & 0xff);
 }
 
-void arc4random_buf(void *buf, size_t n) {
+__attribute__((weak)) void arc4random_buf(void *buf, size_t n) {
     ps5_smb_arc4random_buf(buf, n);
 }
 
-int getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res) {
+__attribute__((weak)) int getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res) {
     return ps5_smb_getaddrinfo(node, service, hints, res);
 }
 
-void freeaddrinfo(struct addrinfo *res) {
+__attribute__((weak)) void freeaddrinfo(struct addrinfo *res) {
     ps5_smb_freeaddrinfo(res);
 }
