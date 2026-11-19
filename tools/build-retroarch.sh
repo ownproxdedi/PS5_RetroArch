@@ -17,7 +17,8 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
 
 upstream="$root/vendor/retroarch"
-sdk="${PS5_PAYLOAD_SDK:-$root/../ps5-native-app-boilerplate-main/.deps/native/ps5-payload-sdk}"
+sdk="${PS5_PAYLOAD_SDK:-$root/.deps/native/ps5-payload-sdk}"
+export PS5_PAYLOAD_SDK="$sdk"
 out="$root/build/ra"
 obj="$out/obj"
 
