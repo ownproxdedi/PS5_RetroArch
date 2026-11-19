@@ -208,21 +208,44 @@ jobs:
 
           bash tools/fetch-retroarch.sh
 
-      - name: Patch RetroArch Vulkan configure check
+      - name: Patch RetroArch Vulkan library check for PS5
         shell: bash
         run: |
           set -euo pipefail
 
-          file="vendor/retroarch/qb/config.libs.sh"
+          file="PS5_RetroArch/vendor/retroarch/qb/config.libs.sh"
 
           if [[ ! -f "$file" ]]; then
-            echo "ERROR: $file was not found"
-            find . -path "*/qb/config.libs.sh" -print
+            echo "ERROR: Could not find $file"
+            find . -path "*/vendor/retroarch/qb/config.libs.sh" -print
             exit 1
           fi
 
-          echo "Found: $file"
-          grep -n "check_lib.*VULKAN.*lvulkan.*vkCreateInstance" "$file"
+          python3 - "$file" <<'PY'
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          source = path.read_text()
+
+          old = "check_lib '' VULKAN -lvulkan vkCreateInstance"
+
+          if old not in source:
+              raise SystemExit("ERROR: Vulkan check not found; source unchanged")
+
+          new = """# PS5 RADV is linked separately; do not require -lvulkan here.
+          if [ "$OS" = 'BSD' ] && [ "$HAVE_VULKAN" != "no" ]; then
+             HAVE_VULKAN=yes
+          else
+             check_lib '' VULKAN -lvulkan vkCreateInstance
+          fi"""
+
+          path.write_text(source.replace(old, new, 1))
+          print("Successfully patched Vulkan configure check")
+          PY
+
+          grep -n -A5 -B2 "PS5 RADV" "$file"
+
       # --------------------------------------------------
       # 6. Configure mGBA-only test build
       # --------------------------------------------------
