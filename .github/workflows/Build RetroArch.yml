@@ -1,3 +1,4 @@
+
 name: Build PS5 RetroArch (ps5vk + MihawkGen - Fast)
 
 on:
@@ -32,10 +33,7 @@ jobs:
             -o Acquire::http::No-Cache=true
           )
 
-          echo "Updating Ubuntu package lists..."
           sudo apt-get "${APT_OPTIONS[@]}" update
-
-          echo "Installing build dependencies..."
 
           for attempt in 1 2 3 4 5; do
             if sudo apt-get "${APT_OPTIONS[@]}" install -y \
@@ -49,21 +47,22 @@ jobs:
               cmake meson ninja-build \
               python3 python3-pip python3-pil \
               python3-mako python3-yaml python3-markupsafe \
+              python3-lxml \
               git rsync zip unzip tar xz-utils \
               glslang-tools spirv-headers \
               libvulkan-dev vulkan-utility-libraries-dev \
-              libfontconfig1-dev libx11-dev
-            then
+              libfontconfig1-dev libx11-dev gh; then
+
               echo "Dependencies installed successfully."
               break
             fi
 
             if [[ "$attempt" -eq 5 ]]; then
-              echo "::error::Dependency installation failed after 5 attempts."
+              echo "::error::Dependency installation failed."
               exit 1
             fi
 
-            echo "APT failed (attempt $attempt). Retrying in 20 seconds..."
+            echo "APT failed. Retrying..."
             sleep 20
             sudo apt-get "${APT_OPTIONS[@]}" update || true
           done
@@ -92,7 +91,7 @@ jobs:
           path: PS5_Mesa
           fetch-depth: 0
 
-      - name: Checkout PS5 MihawkGen (Frame Generation)
+      - name: Checkout PS5 MihawkGen
         uses: actions/checkout@v4
         with:
           repository: mihawk-99/PS5_MihawkGen
@@ -106,7 +105,7 @@ jobs:
           path: PS5_PayloadSDK
           fetch-depth: 0
 
-      - name: Checkout PS5 LLVM (licence notices)
+      - name: Checkout PS5 LLVM
         uses: actions/checkout@v4
         with:
           repository: mihawk-99/PS5_LLVM
@@ -117,13 +116,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ownproxdedi/ps5-opengl
-          ref: main
           path: ps5-opengl-sdk
           fetch-depth: 0
-
-      # --------------------------------------------------
-      # 3. Verify LLVM licence
-      # --------------------------------------------------
 
       - name: Verify LLVM licence
         shell: bash
@@ -133,18 +127,17 @@ jobs:
           LLVM_LICENSE="$GITHUB_WORKSPACE/PS5_LLVM/llvm/LICENSE.TXT"
 
           if [[ ! -s "$LLVM_LICENSE" ]]; then
-            echo "::error::PS5 LLVM licence file is missing."
+            echo "::error::LLVM licence missing: $LLVM_LICENSE"
             exit 1
           fi
 
-          echo "LLVM licence found:"
-          ls -lh "$LLVM_LICENSE"
+          echo "LLVM licence verified."
 
       # --------------------------------------------------
-      # 4. Download prebuilt SDK and Vulkan bundle
+      # 3. Download prebuilt SDK and Vulkan bundle
       # --------------------------------------------------
 
-      - name: Download prebuilt SDK & ps5vk from sdk-bundle-v1 Release
+      - name: Download prebuilt SDK and Vulkan bundle
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -156,35 +149,13 @@ jobs:
             -p "ps5vk-opengl-bundle.tar.gz" \
             -D "$GITHUB_WORKSPACE"
 
-          echo "Extracting prebuilt Vulkan bundle..."
-
           tar -xzf "$GITHUB_WORKSPACE/ps5vk-opengl-bundle.tar.gz" \
             -C "$GITHUB_WORKSPACE"
 
-          C11_DIR=$(find "$GITHUB_WORKSPACE/PS5_Mesa" \
-            -type d -name "c11" -print -quit)
-
-          if [[ -z "$C11_DIR" ]]; then
-            echo "::error::Could not find c11 directory in PS5_Mesa."
-            exit 1
-          fi
-
-          echo "Found c11 headers at: $C11_DIR"
-
-          for dst in \
-            "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include" \
-            "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/src"; do
-
-            mkdir -p "$dst"
-            cp -rf "$C11_DIR" "$dst/"
-          done
-
-          test -f "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include/c11/threads.h"
-
-          echo "Prebuilt Vulkan bundle verified."
+          echo "Bundle extracted."
 
       # --------------------------------------------------
-      # 5. Fetch RetroArch dependencies and sources
+      # 4. Fetch RetroArch dependencies and sources
       # --------------------------------------------------
 
       - name: Fetch RetroArch dependencies and sources
@@ -195,8 +166,10 @@ jobs:
 
           mkdir -p .deps/native
 
-          cp -r "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/zlib" \
-            .deps/native/zlib
+          if [[ -d "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/zlib" ]]; then
+            cp -a "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/zlib" \
+              .deps/native/zlib
+          fi
 
           make deps
 
@@ -208,6 +181,8 @@ jobs:
 
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
+
+          test -x "$PS5_PAYLOAD_SDK/bin/prospero-clang"
 
           bash tools/fetch-retroarch.sh
 
@@ -227,191 +202,200 @@ jobs:
             "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" \
             /tmp/vk_stub.o
 
-          echo "RetroArch dependencies fetched."
-
       # --------------------------------------------------
-      # 6. Prepare OpenGL SDK and build PSBC
+      # 5. Prepare and build PSBC compiler
       # --------------------------------------------------
 
-      - name: Prepare OpenGL SDK and fetch Mesa
+      - name: Prepare and build PSBC compiler
         working-directory: PS5_Vulkan
         shell: bash
+        env:
+          PS5_OPENGL_SDK: ${{ github.workspace }}/ps5-opengl-sdk
+          PS5_MESA_DIR: ${{ github.workspace }}/PS5_Mesa
         run: |
           set -euo pipefail
 
+          echo "=========================================="
+          echo "Preparing PS5 PSBC compiler"
+          echo "=========================================="
+
           SDK_SOURCE="$GITHUB_WORKSPACE/ps5-opengl-sdk"
+          PAYLOAD_SOURCE="$GITHUB_WORKSPACE/PS5_RetroArch/.deps/native/ps5-payload-sdk"
 
-          SDK_OUTPUT="$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/opengl-sdk"
+          test -d "$SDK_SOURCE"
+          test -x "$PAYLOAD_SOURCE/bin/prospero-clang"
 
-          VULKAN_PAYLOAD="$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/ps5-payload-sdk"
+          # The PS5 Vulkan compiler script expects its own
+          # copy of the Payload SDK.
+          mkdir -p .deps/native
 
-          RETROARCH_PAYLOAD="$GITHUB_WORKSPACE/PS5_RetroArch/.deps/native/ps5-payload-sdk"
+          rm -rf .deps/native/ps5-payload-sdk
 
-          echo "=========================================="
-          echo "Checking OpenGL SDK source"
-          echo "=========================================="
+          cp -a "$PAYLOAD_SOURCE" \
+            .deps/native/ps5-payload-sdk
 
-          if [[ ! -s "$SDK_SOURCE/dependencies.json" ]]; then
-            echo "::error::OpenGL SDK dependencies.json is missing."
-            exit 1
-          fi
-
-          for file in \
-            "$SDK_SOURCE/toolchain/opengnm-psbc-ps5.patch" \
-            "$SDK_SOURCE/toolchain/opengnm-psbc-host.mak" \
-            "$SDK_SOURCE/tools/fetch-sources.py" \
-            "$SDK_SOURCE/tools/agc_shader_package_writer.py" \
-            "$SDK_SOURCE/src/platform/ps5_mesa_shims.c" \
-            "$SDK_SOURCE/src/platform/ps5_agc_package.c" \
-            "$SDK_SOURCE/src/platform/ps5_agc_package.h"; do
-
-            if [[ ! -f "$file" ]]; then
-              echo "::error::Required OpenGL SDK file is missing: $file"
-              exit 1
-            fi
-          done
-
-          echo "OpenGL SDK source verified."
-
-          # ------------------------------------------------
-          # Copy Payload SDK from RetroArch dependencies
-          # ------------------------------------------------
-
-          echo "Checking PS5 Payload SDK..."
-
-          if [[ ! -x "$RETROARCH_PAYLOAD/bin/prospero-clang" ]]; then
-            echo "::error::RetroArch Payload SDK compiler is missing."
-            exit 1
-          fi
-
-          mkdir -p "$(dirname "$VULKAN_PAYLOAD")"
-
-          rm -rf "$VULKAN_PAYLOAD"
-
-          cp -a "$RETROARCH_PAYLOAD" "$VULKAN_PAYLOAD"
-
-          if [[ ! -x "$VULKAN_PAYLOAD/bin/prospero-clang" ]]; then
-            echo "::error::Failed to prepare Vulkan Payload SDK."
-            exit 1
-          fi
-
-          export PS5_PAYLOAD_SDK="$VULKAN_PAYLOAD"
           export PS5_OPENGL_SDK="$SDK_SOURCE"
 
-          echo "Payload SDK prepared."
+          echo "SDK source: $PS5_OPENGL_SDK"
 
-          # ------------------------------------------------
-          # Fetch pinned OpenGL SDK dependencies
-          # ------------------------------------------------
-
-          echo "=========================================="
-          echo "Fetching pinned OpenGL SDK dependencies"
-          echo "=========================================="
-
+          # Fetch the SDK's pinned source dependencies.
           make -C "$SDK_SOURCE" source-fetch
 
           # ------------------------------------------------
-          # Build PSBC compiler work copy
+          # Patch PSBC build script to generate Mesa headers
           # ------------------------------------------------
 
-          echo "=========================================="
-          echo "Building PS5 PSBC compiler"
-          echo "=========================================="
-
-          # Generate Mesa's missing format header in the compiler work copy.
-          # Inject this immediately before the PSBC make command.
           python3 - <<'PY'
           from pathlib import Path
 
           script = Path("tools/build-psbc-ps5.sh")
           source = script.read_text()
 
-          marker = 'support_objects=(../../src/platform/ps5_agc_package.ps5.o'
+          marker = (
+              "support_objects=(../../src/platform/"
+              "ps5_agc_package.ps5.o"
+          )
 
           if marker not in source:
               raise SystemExit(
-                  "Could not locate PSBC build insertion point. "
+                  "Could not find PSBC support_objects insertion point. "
                   "The upstream build script may have changed."
               )
 
           injection = r'''
-          # Generate Mesa format enums required by u_formats.h.
-          format_dir="$tree/src/util/format"
+          # ------------------------------------------------
+          # Generate required Mesa headers.
+          # These must be generated inside the actual PSBC
+          # compiler work tree, after its source has been copied.
+          # ------------------------------------------------
 
-          echo "Generating Mesa u_format_gen.h..."
+          echo "Generating Mesa compiler headers..."
 
-          test -s "$format_dir/u_format_table.py"
-          test -s "$format_dir/u_format.yaml"
+          FORMAT_DIR="$tree/src/util/format"
+          COMPILER_DIR="$tree/src/compiler"
+          UTIL_DIR="$tree/src/util"
 
-          python3 "$format_dir/u_format_table.py" \
-              "$format_dir/u_format.yaml" \
-              --enums > "$format_dir/u_format_gen.h"
+          # Check all generator inputs before running them.
+          test -s "$FORMAT_DIR/u_format_table.py"
+          test -s "$FORMAT_DIR/u_format.yaml"
 
-          if [[ ! -s "$format_dir/u_format_gen.h" ]]; then
-              echo "ERROR: Failed to generate u_format_gen.h"
-              exit 1
-          fi
+          test -s "$UTIL_DIR/process_shader_stats.py"
+          test -s "$UTIL_DIR/shader_stats.rnc"
+          test -s "$UTIL_DIR/shader_stats.xml"
 
-          echo "Generated Mesa format header:"
-          ls -lh "$format_dir/u_format_gen.h"
+          test -s "$COMPILER_DIR/builtin_types_h.py"
+          test -s "$COMPILER_DIR/builtin_types.py"
+
+          # 1. Mesa format enums.
+          echo "Generating u_format_gen.h..."
+
+          python3 "$FORMAT_DIR/u_format_table.py" \
+              "$FORMAT_DIR/u_format.yaml" \
+              --enums > "$FORMAT_DIR/u_format_gen.h"
+
+          test -s "$FORMAT_DIR/u_format_gen.h"
+
+          # 2. Mesa shader statistics header.
+          echo "Generating shader_stats.h..."
+
+          python3 "$UTIL_DIR/process_shader_stats.py" \
+              "$UTIL_DIR/shader_stats.rnc" \
+              "$UTIL_DIR/shader_stats.xml" \
+              > "$UTIL_DIR/shader_stats.h"
+
+          test -s "$UTIL_DIR/shader_stats.h"
+
+          # 3. GLSL built-in type declarations.
+          echo "Generating builtin_types.h..."
+
+          python3 "$COMPILER_DIR/builtin_types_h.py" \
+              "$COMPILER_DIR/builtin_types.h"
+
+          test -s "$COMPILER_DIR/builtin_types.h"
+
+          echo "Generated Mesa headers:"
+          ls -lh \
+              "$FORMAT_DIR/u_format_gen.h" \
+              "$UTIL_DIR/shader_stats.h" \
+              "$COMPILER_DIR/builtin_types.h"
+
+          # Fail early if any expected header is missing.
+          test -s "$UTIL_DIR/shader_stats.h"
+          test -s "$COMPILER_DIR/builtin_types.h"
+          test -s "$FORMAT_DIR/u_format_gen.h"
 
           '''
 
-          if "Generating Mesa u_format_gen.h" not in source:
-              source = source.replace(marker, injection + marker, 1)
+          if "Generating Mesa compiler headers" not in source:
+              source = source.replace(
+                  marker,
+                  injection + "\n" + marker,
+                  1
+              )
               script.write_text(source)
 
-          print("PSBC build script updated.")
+          print("PSBC build script patched successfully.")
           PY
 
-          bash tools/build-psbc-ps5.sh
+          # ------------------------------------------------
+          # Build PSBC
+          # ------------------------------------------------
 
-          if [[ ! -d ".deps/work/psbc-ps5/third_party/opengnm-psbc/libpsbc" ]]; then
-            echo "::error::PSBC compiler work copy was not created."
+          echo "=========================================="
+          echo "Building PS5 PSBC compiler"
+          echo "=========================================="
+
+          if ! bash tools/build-psbc-ps5.sh; then
+            echo ""
+            echo "=========================================="
+            echo "PSBC BUILD FAILED"
+            echo "=========================================="
+
+            LOG=".deps/work/psbc-ps5/build.log"
+
+            if [[ -f "$LOG" ]]; then
+              echo "Last 250 lines of PSBC build log:"
+              tail -n 250 "$LOG"
+            fi
+
+            echo ""
+            echo "Generated header diagnostics:"
+
+            find .deps/work/psbc-ps5/third_party/opengnm-psbc/src \
+              -type f \
+              \( -name "u_format_gen.h" \
+              -o -name "shader_stats.h" \
+              -o -name "builtin_types.h" \) \
+              -print 2>/dev/null || true
+
             exit 1
           fi
 
-          # ------------------------------------------------
-          # Adapt OpenGL SDK
-          # ------------------------------------------------
+          echo "PSBC compiler built successfully."
 
-          echo "=========================================="
-          echo "Adapting OpenGL SDK"
-          echo "=========================================="
+      # --------------------------------------------------
+      # 6. Adapt OpenGL SDK and fetch Mesa
+      # --------------------------------------------------
+
+      - name: Adapt OpenGL SDK and fetch Mesa
+        working-directory: PS5_Vulkan
+        shell: bash
+        env:
+          PS5_OPENGL_SDK: ${{ github.workspace }}/ps5-opengl-sdk
+        run: |
+          set -euo pipefail
+
+          SDK_SOURCE="$GITHUB_WORKSPACE/ps5-opengl-sdk"
+
+          echo "Adapting PS5 OpenGL SDK..."
 
           bash tools/adapt-opengl-sdk.sh "$SDK_SOURCE"
 
-          if [[ ! -d "$SDK_OUTPUT/third_party/opengnm-psbc" ]]; then
-            echo "::error::Adapted OpenGL SDK compiler is missing."
-            exit 1
-          fi
-
-          if [[ ! -s "$SDK_OUTPUT/dependencies.json" ]]; then
-            echo "::error::Adapted OpenGL SDK dependencies.json is missing."
-            exit 1
-          fi
-
-          # ------------------------------------------------
-          # Set adapted SDK for subsequent workflow steps
-          # ------------------------------------------------
-
-          export PS5_OPENGL_SDK="$SDK_OUTPUT"
-
-          echo "PS5_OPENGL_SDK=$SDK_OUTPUT" >> "$GITHUB_ENV"
-
-          echo "Adapted OpenGL SDK verified."
-
-          # ------------------------------------------------
-          # Fetch pinned Mesa source
-          # ------------------------------------------------
-
-          echo "=========================================="
-          echo "Fetching pinned Mesa source"
-          echo "=========================================="
+          echo "Fetching pinned Mesa source..."
 
           bash tools/fetch-mesa.sh
 
-          LICENSE_FILE="$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/mesa/mesa-26.2.0/docs/license.rst"
+          LICENSE_FILE=".deps/native/mesa/mesa-26.2.0/docs/license.rst"
 
           if [[ ! -s "$LICENSE_FILE" ]]; then
             echo "::error::Mesa licence file is missing."
@@ -420,10 +404,6 @@ jobs:
 
           echo "Mesa licence verified:"
           ls -lh "$LICENSE_FILE"
-
-          echo "=========================================="
-          echo "OpenGL SDK preparation completed"
-          echo "=========================================="
 
       # --------------------------------------------------
       # 7. Build PS5 RetroArch title
@@ -438,7 +418,6 @@ jobs:
           PS5_FRAMEGEN: ${{ github.workspace }}/PS5_MihawkGen
           PS5_VULKAN_DRIVER: ps5vk
           PS5_CLANG: /usr/bin/clang
-          PS5_OPENGL_SDK: ${{ github.workspace }}/PS5_Vulkan/.deps/native/opengl-sdk
 
         run: |
           set -euo pipefail
@@ -448,14 +427,21 @@ jobs:
 
           LLD="$PS5_PAYLOAD_SDK/bin/prospero-lld"
 
-          if [ -f "$LLD" ] && ! grep -q "wrap=pthread_create" "$LLD"; then
+          # ------------------------------------------------
+          # Custom pthread linker wrapper
+          # ------------------------------------------------
+
+          if [[ -f "$LLD" ]] && ! grep -q "wrap=pthread_create" "$LLD"; then
             mv "$LLD" "${LLD}.orig"
 
             cat << 'EOF' > "$LLD"
           #!/usr/bin/env bash
           case " $* " in
             *"libps5platform"*)
-              exec "${0}.orig" --wrap=pthread_create --wrap=pthread_join --wrap=pthread_detach "$@"
+              exec "${0}.orig" \
+                --wrap=pthread_create \
+                --wrap=pthread_join \
+                --wrap=pthread_detach "$@"
               ;;
             *)
               exec "${0}.orig" "$@"
@@ -466,29 +452,58 @@ jobs:
             chmod +x "$LLD"
           fi
 
+          # ------------------------------------------------
           # Skip Lapy daemon
+          # ------------------------------------------------
+
           printf '#!/usr/bin/env python3\nimport sys; sys.exit(0)\n' \
             > tools/build-lapy.py
 
           sed -i '/lapy-root-daemon/d' \
             tools/build-title.sh Makefile 2>/dev/null || true
 
-          # Apply existing core compatibility patch
-          python3 -c '
-          import pathlib, re
+          # ------------------------------------------------
+          # Existing core compatibility patch
+          # ------------------------------------------------
+
+          python3 - <<'PY'
+          import pathlib
+          import re
 
           p = pathlib.Path("tools/check-core.py")
           txt = p.read_text()
 
-          def add_fix(m):
-              return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b.__getitem__(7) == 0:\n        b.__setitem__(7, 9)\n        path.write_bytes(b)\n"
+          if "__setitem__(7, 9)" not in txt:
+              def add_fix(m):
+                  return m.group(0) + (
+                      "    b = bytearray(path.read_bytes())\n"
+                      "    if len(b) > 8 and b[7] == 0:\n"
+                      "        b[7] = 9\n"
+                      "        path.write_bytes(b)\n"
+                  )
 
-          p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
-          assert "__setitem__(7, 9)" in p.read_text()
-          '
+              txt, count = re.subn(
+                  r"def inspect\([^)]*\):\n",
+                  add_fix,
+                  txt,
+                  count=1
+              )
 
+              if count != 1:
+                  raise SystemExit(
+                      "Could not patch check-core.py"
+                  )
+
+              p.write_text(txt)
+
+          assert "__setitem__(7, 9)" in p.read_text() or "b[7] = 9" in p.read_text()
+          PY
+
+          # ------------------------------------------------
           # Build mGBA only
-          python3 -c '
+          # ------------------------------------------------
+
+          python3 - <<'PY'
           import pathlib
 
           bt = pathlib.Path("tools/build-title.sh")
@@ -497,20 +512,25 @@ jobs:
           start = txt.index("core_names=(")
           end = txt.index(")", start) + 1
 
-          bt.write_text(txt[:start] + "core_names=(mgba)" + txt[end:])
+          bt.write_text(
+              txt[:start] + "core_names=(mgba)" + txt[end:]
+          )
+
           assert "core_names=(mgba)" in bt.read_text()
 
+          # Handle missing Stella source in metadata generation.
           gm = pathlib.Path("tools/generate-core-metadata.py")
           gm_txt = gm.read_text()
-          gm_txt = gm_txt.replace(
-              "data = stella_data(source)",
-              "if not source.exists(): continue\n        data = stella_data(source)"
-          )
-          gm.write_text(gm_txt)
-          '
+
+          old = "data = stella_data(source)"
+          new = "if not source.exists(): continue\n        data = stella_data(source)"
+
+          if old in gm_txt:
+              gm.write_text(gm_txt.replace(old, new, 1))
+          PY
 
           # ------------------------------------------------
-          # Run build with full diagnostics
+          # Build with diagnostics
           # ------------------------------------------------
 
           echo "=========================================="
@@ -565,7 +585,7 @@ jobs:
           # ------------------------------------------------
 
           if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
-            echo "ERROR: eboot.bin missing!"
+            echo "::error::eboot.bin missing!"
             exit 1
           fi
 
@@ -582,10 +602,14 @@ jobs:
           set -euo pipefail
 
           test -d PPSA99169
+          test -s PPSA99169/eboot.bin
 
-          zip -qr "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" PPSA99169
+          zip -qr \
+            "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" \
+            PPSA99169
 
-          sha256sum "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" \
+          sha256sum \
+            "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" \
             > "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip.sha256"
 
           ls -lh "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip"
