@@ -1,4 +1,3 @@
-
 name: Build PS5 RetroArch (ps5vk + MihawkGen - Fast)
 
 on:
@@ -16,6 +15,7 @@ jobs:
     timeout-minutes: 360
 
     steps:
+
       # --------------------------------------------------
       # 1. Install host build dependencies
       # --------------------------------------------------
@@ -38,17 +38,21 @@ jobs:
           echo "Installing build dependencies..."
 
           for attempt in 1 2 3 4 5; do
-            if sudo apt-get "${APT_OPTIONS[@]}" install -y \              
-              sudo apt-get update
-              sudo apt-get install -y \
-                build-essential clang clang-18 llvm llvm-18 llvm-18-dev lld lld-18 \
-                libclang-18-dev libclang-cpp18-dev libclc-18-dev libllvmspirvlib-18-dev \
-                curl wget patch pkg-config binutils cmake meson ninja-build \
-                python3 python3-pil python3-mako python3-yaml python3-markupsafe \
-                git rsync zip unzip tar xz-utils glslang-tools spirv-headers \
-                libvulkan-dev vulkan-utility-libraries-dev libfontconfig1-dev libx11-dev
-              pipx install meson
-              pipx install ninja
+            if sudo apt-get "${APT_OPTIONS[@]}" install -y \
+              build-essential \
+              clang clang-18 \
+              llvm llvm-18 llvm-18-dev \
+              lld lld-18 \
+              libclang-18-dev libclang-cpp18-dev \
+              libclc-18-dev libllvmspirvlib-18-dev \
+              curl wget patch pkg-config binutils \
+              cmake meson ninja-build \
+              python3 python3-pip python3-pil \
+              python3-mako python3-yaml python3-markupsafe \
+              git rsync zip unzip tar xz-utils \
+              glslang-tools spirv-headers \
+              libvulkan-dev vulkan-utility-libraries-dev \
+              libfontconfig1-dev libx11-dev
             then
               echo "Dependencies installed successfully."
               break
@@ -63,18 +67,6 @@ jobs:
             sleep 20
             sudo apt-get "${APT_OPTIONS[@]}" update || true
           done
-      - name: Install host build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential clang clang-18 llvm llvm-18 llvm-18-dev lld lld-18 \
-            libclang-18-dev libclang-cpp18-dev libclc-18-dev libllvmspirvlib-18-dev \
-            curl wget patch pkg-config binutils cmake meson ninja-build \
-            python3 python3-pil python3-mako python3-yaml python3-markupsafe \
-            git rsync zip unzip tar xz-utils glslang-tools spirv-headers \
-            libvulkan-dev vulkan-utility-libraries-dev libfontconfig1-dev libx11-dev
-          pipx install meson
-          pipx install ninja
 
       # --------------------------------------------------
       # 2. Checkout repositories
@@ -121,6 +113,18 @@ jobs:
           path: PS5_LLVM
           fetch-depth: 1
 
+      - name: Checkout PS5 OpenGL SDK
+        uses: actions/checkout@v4
+        with:
+          repository: ownproxdedi/ps5-opengl
+          ref: main
+          path: ps5-opengl-sdk
+          fetch-depth: 0
+
+      # --------------------------------------------------
+      # 3. Verify LLVM licence
+      # --------------------------------------------------
+
       - name: Verify LLVM licence
         shell: bash
         run: |
@@ -129,7 +133,7 @@ jobs:
           LLVM_LICENSE="$GITHUB_WORKSPACE/PS5_LLVM/llvm/LICENSE.TXT"
 
           if [[ ! -s "$LLVM_LICENSE" ]]; then
-            echo "::error::PS5 LLVM licence file is missing: $LLVM_LICENSE"
+            echo "::error::PS5 LLVM licence file is missing."
             exit 1
           fi
 
@@ -137,7 +141,7 @@ jobs:
           ls -lh "$LLVM_LICENSE"
 
       # --------------------------------------------------
-      # 3. Download prebuilt SDK and Vulkan bundle
+      # 4. Download prebuilt SDK and Vulkan bundle
       # --------------------------------------------------
 
       - name: Download prebuilt SDK & ps5vk from sdk-bundle-v1 Release
@@ -152,11 +156,18 @@ jobs:
             -p "ps5vk-opengl-bundle.tar.gz" \
             -D "$GITHUB_WORKSPACE"
 
+          echo "Extracting prebuilt Vulkan bundle..."
+
           tar -xzf "$GITHUB_WORKSPACE/ps5vk-opengl-bundle.tar.gz" \
             -C "$GITHUB_WORKSPACE"
 
           C11_DIR=$(find "$GITHUB_WORKSPACE/PS5_Mesa" \
-            -type d -name "c11" | head -n1)
+            -type d -name "c11" -print -quit)
+
+          if [[ -z "$C11_DIR" ]]; then
+            echo "::error::Could not find c11 directory in PS5_Mesa."
+            exit 1
+          fi
 
           echo "Found c11 headers at: $C11_DIR"
 
@@ -170,8 +181,10 @@ jobs:
 
           test -f "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include/c11/threads.h"
 
+          echo "Prebuilt Vulkan bundle verified."
+
       # --------------------------------------------------
-      # 4. Fetch RetroArch dependencies and sources
+      # 5. Fetch RetroArch dependencies and sources
       # --------------------------------------------------
 
       - name: Fetch RetroArch dependencies and sources
@@ -214,27 +227,160 @@ jobs:
             "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" \
             /tmp/vk_stub.o
 
-      - name: Fetch Mesa source for licence notices
+          echo "RetroArch dependencies fetched."
+
+      # --------------------------------------------------
+      # 6. Prepare OpenGL SDK and build PSBC
+      # --------------------------------------------------
+
+      - name: Prepare OpenGL SDK and fetch Mesa
+        working-directory: PS5_Vulkan
         shell: bash
         run: |
           set -euo pipefail
 
-          cd "$GITHUB_WORKSPACE/PS5_Vulkan"
+          SDK_SOURCE="$GITHUB_WORKSPACE/ps5-opengl-sdk"
 
-          echo "Fetching pinned Mesa source..."
+          SDK_OUTPUT="$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/opengl-sdk"
+
+          VULKAN_PAYLOAD="$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/ps5-payload-sdk"
+
+          RETROARCH_PAYLOAD="$GITHUB_WORKSPACE/PS5_RetroArch/.deps/native/ps5-payload-sdk"
+
+          echo "=========================================="
+          echo "Checking OpenGL SDK source"
+          echo "=========================================="
+
+          if [[ ! -s "$SDK_SOURCE/dependencies.json" ]]; then
+            echo "::error::OpenGL SDK dependencies.json is missing."
+            exit 1
+          fi
+
+          for file in \
+            "$SDK_SOURCE/toolchain/opengnm-psbc-ps5.patch" \
+            "$SDK_SOURCE/toolchain/opengnm-psbc-host.mak" \
+            "$SDK_SOURCE/tools/fetch-sources.py" \
+            "$SDK_SOURCE/tools/agc_shader_package_writer.py" \
+            "$SDK_SOURCE/src/platform/ps5_mesa_shims.c" \
+            "$SDK_SOURCE/src/platform/ps5_agc_package.c" \
+            "$SDK_SOURCE/src/platform/ps5_agc_package.h"; do
+
+            if [[ ! -f "$file" ]]; then
+              echo "::error::Required OpenGL SDK file is missing: $file"
+              exit 1
+            fi
+          done
+
+          echo "OpenGL SDK source verified."
+
+          # ------------------------------------------------
+          # Copy Payload SDK from RetroArch dependencies
+          # ------------------------------------------------
+
+          echo "Checking PS5 Payload SDK..."
+
+          if [[ ! -x "$RETROARCH_PAYLOAD/bin/prospero-clang" ]]; then
+            echo "::error::RetroArch Payload SDK compiler is missing."
+            exit 1
+          fi
+
+          mkdir -p "$(dirname "$VULKAN_PAYLOAD")"
+
+          rm -rf "$VULKAN_PAYLOAD"
+
+          cp -a "$RETROARCH_PAYLOAD" "$VULKAN_PAYLOAD"
+
+          if [[ ! -x "$VULKAN_PAYLOAD/bin/prospero-clang" ]]; then
+            echo "::error::Failed to prepare Vulkan Payload SDK."
+            exit 1
+          fi
+
+          export PS5_PAYLOAD_SDK="$VULKAN_PAYLOAD"
+          export PS5_OPENGL_SDK="$SDK_SOURCE"
+
+          echo "Payload SDK prepared."
+
+          # ------------------------------------------------
+          # Fetch pinned OpenGL SDK dependencies
+          # ------------------------------------------------
+
+          echo "=========================================="
+          echo "Fetching pinned OpenGL SDK dependencies"
+          echo "=========================================="
+
+          make -C "$SDK_SOURCE" source-fetch
+
+          # ------------------------------------------------
+          # Build PSBC compiler work copy
+          # ------------------------------------------------
+
+          echo "=========================================="
+          echo "Building PS5 PSBC compiler"
+          echo "=========================================="
+
+          bash tools/build-psbc-ps5.sh
+
+          if [[ ! -d ".deps/work/psbc-ps5/third_party/opengnm-psbc/libpsbc" ]]; then
+            echo "::error::PSBC compiler work copy was not created."
+            exit 1
+          fi
+
+          # ------------------------------------------------
+          # Adapt OpenGL SDK
+          # ------------------------------------------------
+
+          echo "=========================================="
+          echo "Adapting OpenGL SDK"
+          echo "=========================================="
+
+          bash tools/adapt-opengl-sdk.sh "$SDK_SOURCE"
+
+          if [[ ! -d "$SDK_OUTPUT/third_party/opengnm-psbc" ]]; then
+            echo "::error::Adapted OpenGL SDK compiler is missing."
+            exit 1
+          fi
+
+          if [[ ! -s "$SDK_OUTPUT/dependencies.json" ]]; then
+            echo "::error::Adapted OpenGL SDK dependencies.json is missing."
+            exit 1
+          fi
+
+          # ------------------------------------------------
+          # Set adapted SDK for subsequent workflow steps
+          # ------------------------------------------------
+
+          export PS5_OPENGL_SDK="$SDK_OUTPUT"
+
+          echo "PS5_OPENGL_SDK=$SDK_OUTPUT" >> "$GITHUB_ENV"
+
+          echo "Adapted OpenGL SDK verified."
+
+          # ------------------------------------------------
+          # Fetch pinned Mesa source
+          # ------------------------------------------------
+
+          echo "=========================================="
+          echo "Fetching pinned Mesa source"
+          echo "=========================================="
+
           bash tools/fetch-mesa.sh
 
-          LICENSE_FILE=".deps/native/mesa/mesa-26.2.0/docs/license.rst"
+          LICENSE_FILE="$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/mesa/mesa-26.2.0/docs/license.rst"
 
           if [[ ! -s "$LICENSE_FILE" ]]; then
-            echo "::error::Mesa licence file is missing: $LICENSE_FILE"
+            echo "::error::Mesa licence file is missing."
             exit 1
           fi
 
           echo "Mesa licence verified:"
           ls -lh "$LICENSE_FILE"
+
+          echo "=========================================="
+          echo "OpenGL SDK preparation completed"
+          echo "=========================================="
+
       # --------------------------------------------------
-      # 5. Build PS5 RetroArch title
+      # 7. Build PS5 RetroArch title
       # --------------------------------------------------
 
       - name: Build PS5 RetroArch title (mGBA test)
@@ -246,6 +392,7 @@ jobs:
           PS5_FRAMEGEN: ${{ github.workspace }}/PS5_MihawkGen
           PS5_VULKAN_DRIVER: ps5vk
           PS5_CLANG: /usr/bin/clang
+          PS5_OPENGL_SDK: ${{ github.workspace }}/PS5_Vulkan/.deps/native/opengl-sdk
 
         run: |
           set -euo pipefail
@@ -379,7 +526,7 @@ jobs:
           echo "RetroArch title (mGBA test) built successfully."
 
       # --------------------------------------------------
-      # 6. Package PS5 title
+      # 8. Package PS5 title
       # --------------------------------------------------
 
       - name: Package PPSA99169
@@ -398,7 +545,7 @@ jobs:
           ls -lh "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip"
 
       # --------------------------------------------------
-      # 7. Upload compiled PS5 package
+      # 9. Upload compiled PS5 package
       # --------------------------------------------------
 
       - name: Upload compiled PS5 package
