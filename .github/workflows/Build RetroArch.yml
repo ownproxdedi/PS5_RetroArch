@@ -272,37 +272,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "=== Locate mGBA library ==="
-          find . -name "mgba_libretro.so" -print
+          echo "=== Current directory ==="
+          pwd
 
-          core=$(find . -name "mgba_libretro.so" -print -quit)
-
-          if [[ -z "$core" ]]; then
-            echo "ERROR: mGBA library not found"
-            exit 1
-          fi
+          echo "=== Locate all mGBA build outputs ==="
+          find "$GITHUB_WORKSPACE" -type f \
+            \( -name "mgba_libretro.so" -o -name "mgba_libretro.a" \) \
+            -print
 
           echo ""
-          echo "=== File information ==="
-          file "$core"
+          echo "=== Locate mGBA build directories ==="
+          find "$GITHUB_WORKSPACE" -type d -path "*/build/cores/mgba" -print
 
           echo ""
-          echo "=== ELF header ==="
-          readelf -h "$core"
-
-          echo ""
-          echo "=== ELF program headers ==="
-          readelf -l "$core"
-
-          echo ""
-          echo "=== Compiler environment ==="
-          echo "CC=${CC:-unset}"
-          echo "CXX=${CXX:-unset}"
-          echo "PS5_PAYLOAD_SDK=${PS5_PAYLOAD_SDK:-unset}"
-
-          echo ""
-          echo "=== Available Prospero compiler ==="
-          find . -path "*/bin/prospero-clang" -print
+          echo "=== Locate ABI checker ==="
+          grep -R -n -E \
+            "core ABI check failed|ELF64 little-endian FreeBSD" \
+            "$GITHUB_WORKSPACE" \
+            --include="*.sh" --include="*.py" 2>/dev/null || true
 
       - name: Locate core ABI validation
         shell: bash
