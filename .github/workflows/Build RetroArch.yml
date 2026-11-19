@@ -266,6 +266,17 @@ jobs:
           print("Configured missing-source metadata handling.")
           PY
 
+      - name: Inspect mGBA build configuration
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE"
+
+          echo "=== mGBA build references ==="
+          grep -R -n -i "mgba" tools \
+            --include="*.sh" \
+            --include="*.py" \
+            --include="*.yml" 2>/dev/null || true
+
       - name: Find core ABI checker
         shell: bash
         run: |
@@ -309,6 +320,19 @@ jobs:
           grep -R -n -E \
             "core ABI check failed|ELF64 little-endian FreeBSD" \
             PS5_RetroArch/tools PS5_RetroArch/scripts 2>/dev/null || true
+
+
+      - name: Inspect core ABI checker
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE/PS5_RetroArch"
+
+          echo "=== check-core.py ==="
+          sed -n '1,120p' tools/check-core.py
+
+          echo ""
+          echo "=== Where check-core.py is called ==="
+          grep -R -n "check-core.py" tools
 
       # --------------------------------------------------
       # 7. Build RetroArch using RADV
