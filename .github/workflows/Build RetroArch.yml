@@ -281,6 +281,40 @@ jobs:
           print("Configured missing-source metadata handling.")
           PY
 
+      
+      - name: Patch RetroArch Vulkan library check for PS5
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          file="vendor/retroarch/qb/config.libs.sh"
+
+          python3 - "$file" <<'PY'
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          source = path.read_text()
+
+          old = '''if [ "$HAVE_VULKAN" != "no" ] && [ "$OS" = 'Win32' ]; then
+             HAVE_VULKAN=yes
+          else
+             check_lib '' VULKAN -lvulkan vkCreateInstance
+          fi'''
+
+          new = '''if [ "$HAVE_VULKAN" != "no" ] && { [ "$OS" = 'Win32' ] || [ "$OS" = 'BSD' ]; }; then
+             HAVE_VULKAN=yes
+          else
+             check_lib '' VULKAN -lvulkan vkCreateInstance
+          fi'''
+
+          if old not in source:
+              raise SystemExit("ERROR: Expected Vulkan check was not found; source unchanged")
+
+          path.write_text(source.replace(old, new, 1))
+          print("Successfully patched RetroArch Vulkan check for BSD/PS5")
+          PY
+          grep -n -A4 -B1 'check_lib.*VULKAN.*lvulkan' "$file"
 
       - name: Diagnose RADV Vulkan libraries
         run: |
