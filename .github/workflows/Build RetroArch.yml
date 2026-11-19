@@ -71,10 +71,16 @@ jobs:
           gh release download sdk-bundle-v1 -R "$GITHUB_REPOSITORY" -p "ps5vk-opengl-bundle.tar.gz" -D "$GITHUB_WORKSPACE"
           tar -xzf "$GITHUB_WORKSPACE/ps5vk-opengl-bundle.tar.gz" -C "$GITHUB_WORKSPACE"
 
-          # Stage Mesa c11/threads.h headers from PS5_Mesa checkout
-          INC_DST="$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include"
-          mkdir -p "$INC_DST"
-          cp -rn "$GITHUB_WORKSPACE/PS5_Mesa/include/"* "$INC_DST/"
+          # Find c11/threads.h anywhere in PS5_Mesa and stage it into opengnm-psbc include & src
+          C11_DIR=$(find "$GITHUB_WORKSPACE/PS5_Mesa" -type d -name "c11" | head -n1)
+          echo "Found c11 headers at: $C11_DIR"
+          for dst in \
+            "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include" \
+            "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/src"; do
+            mkdir -p "$dst"
+            cp -rf "$C11_DIR" "$dst/"
+          done
+          test -f "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include/c11/threads.h"
 
       - name: Fetch RetroArch dependencies and sources
         working-directory: PS5_RetroArch
