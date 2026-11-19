@@ -266,6 +266,18 @@ jobs:
           print("Configured missing-source metadata handling.")
           PY
 
+
+      - name: Diagnose RADV Vulkan libraries
+        run: |
+          echo "Searching for Vulkan libraries..."
+
+          find PS5_Vulkan -type f \
+            \( -name '*vulkan*.a' -o -name '*vulkan*.so' \) \
+            -print
+
+          echo "Checking RetroArch Vulkan linker flags..."
+          grep -n -E 'vulkan|FORCE' \
+            PS5_RetroArch/tools/build-retroarch.sh || true
       # --------------------------------------------------
       # 7. Build RetroArch using RADV
       # --------------------------------------------------
