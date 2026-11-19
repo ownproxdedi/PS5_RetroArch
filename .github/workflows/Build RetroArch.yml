@@ -140,7 +140,7 @@ jobs:
           echo "$HOME/.venvs/meson/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.venvs/meson/bin:$PATH"
 
-          python3 -c "import packaging, mako; print('Python dependencies OK')"
+          python3 -c "import packaging, mako, yaml; print('Python dependencies OK')"
           meson --version
       # --------------------------------------------------
       # 4. Build RADV
