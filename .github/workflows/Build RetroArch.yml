@@ -160,10 +160,13 @@ jobs:
           '
           
           bash tools/build-title.sh || {
-            echo "=== Dynamic exports in raw ELF ==="
-            readelf -sW --dyn-syms dist/PPSA99169/* build/app/* 2>/dev/null | grep -v " UND " || true
-            echo "=== Makefile lines 90-135 ==="
-            sed -n '90,135p' Makefile
+            echo "=== Dynamic exports in build ELF ==="
+            for f in $(find build -maxdepth 3 -type f \( -name "*.elf" -o -name "eboot*" \)); do
+              echo "--- $f ---"
+              readelf -sW --dyn-syms "$f" 2>/dev/null | grep -v " UND " || true
+            done
+            echo "=== tools/build.sh ==="
+            cat tools/build.sh
             exit 1
           }
 
