@@ -1,3 +1,4 @@
+
 name: Build PS5 RetroArch (ps5vk + MihawkGen - Fast)
 
 on:
@@ -15,6 +16,10 @@ jobs:
     timeout-minutes: 360
 
     steps:
+      # --------------------------------------------------
+      # 1. Install host build dependencies
+      # --------------------------------------------------
+
       - name: Install host build dependencies
         run: |
           sudo apt-get update
@@ -27,6 +32,10 @@ jobs:
             libvulkan-dev vulkan-utility-libraries-dev libfontconfig1-dev libx11-dev
           pipx install meson
           pipx install ninja
+
+      # --------------------------------------------------
+      # 2. Checkout repositories
+      # --------------------------------------------------
 
       - name: Checkout PS5 RetroArch
         uses: actions/checkout@v4
@@ -62,61 +71,109 @@ jobs:
           path: PS5_PayloadSDK
           fetch-depth: 0
 
+      # --------------------------------------------------
+      # 3. Download prebuilt SDK and Vulkan bundle
+      # --------------------------------------------------
+
       - name: Download prebuilt SDK & ps5vk from sdk-bundle-v1 Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          gh release download sdk-bundle-v1 -R "$GITHUB_REPOSITORY" -p "ps5vk-opengl-bundle.tar.gz" -D "$GITHUB_WORKSPACE"
-          tar -xzf "$GITHUB_WORKSPACE/ps5vk-opengl-bundle.tar.gz" -C "$GITHUB_WORKSPACE"
 
-          C11_DIR=$(find "$GITHUB_WORKSPACE/PS5_Mesa" -type d -name "c11" | head -n1)
+          gh release download sdk-bundle-v1 \
+            -R "$GITHUB_REPOSITORY" \
+            -p "ps5vk-opengl-bundle.tar.gz" \
+            -D "$GITHUB_WORKSPACE"
+
+          tar -xzf "$GITHUB_WORKSPACE/ps5vk-opengl-bundle.tar.gz" \
+            -C "$GITHUB_WORKSPACE"
+
+          C11_DIR=$(find "$GITHUB_WORKSPACE/PS5_Mesa" \
+            -type d -name "c11" | head -n1)
+
           echo "Found c11 headers at: $C11_DIR"
+
           for dst in \
             "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include" \
             "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/src"; do
+
             mkdir -p "$dst"
             cp -rf "$C11_DIR" "$dst/"
           done
+
           test -f "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include/c11/threads.h"
+
+      # --------------------------------------------------
+      # 4. Fetch RetroArch dependencies and sources
+      # --------------------------------------------------
 
       - name: Fetch RetroArch dependencies and sources
         working-directory: PS5_RetroArch
         shell: bash
         run: |
           set -euo pipefail
+
           mkdir -p .deps/native
-          cp -r "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/zlib" .deps/native/zlib
+
+          cp -r "$GITHUB_WORKSPACE/PS5_Vulkan/.deps/native/zlib" \
+            .deps/native/zlib
+
           make deps
+
           rm -rf vendor/retroarch
-          sed -i 's|libretro-common/include/retroarch.h|retroarch.h|g' tools/fetch-retroarch.sh
+
+          sed -i \
+            's|libretro-common/include/retroarch.h|retroarch.h|g' \
+            tools/fetch-retroarch.sh
+
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PS5_CLANG=/usr/bin/clang
+
           bash tools/fetch-retroarch.sh
 
-          mkdir -p "$PS5_PAYLOAD_SDK/target/include" "$PS5_PAYLOAD_SDK/target/lib"
-          cp -r /usr/include/vulkan /usr/include/vk_video "$PS5_PAYLOAD_SDK/target/include/" 2>/dev/null || true
+          mkdir -p \
+            "$PS5_PAYLOAD_SDK/target/include" \
+            "$PS5_PAYLOAD_SDK/target/lib"
+
+          cp -r /usr/include/vulkan /usr/include/vk_video \
+            "$PS5_PAYLOAD_SDK/target/include/" 2>/dev/null || true
+
           echo "void vkCreateInstance(void) {}" > /tmp/vk_stub.c
-          "$PS5_PAYLOAD_SDK/bin/prospero-clang" -c /tmp/vk_stub.c -o /tmp/vk_stub.o
-          "$PS5_PAYLOAD_SDK/bin/llvm-ar" rcs "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" /tmp/vk_stub.o
+
+          "$PS5_PAYLOAD_SDK/bin/prospero-clang" \
+            -c /tmp/vk_stub.c -o /tmp/vk_stub.o
+
+          "$PS5_PAYLOAD_SDK/bin/llvm-ar" rcs \
+            "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" \
+            /tmp/vk_stub.o
+
+      # --------------------------------------------------
+      # 5. Build PS5 RetroArch title
+      # --------------------------------------------------
 
       - name: Build PS5 RetroArch title (mGBA test)
         working-directory: PS5_RetroArch
         shell: bash
+
         env:
           PS5_VULKAN_DIR: ${{ github.workspace }}/PS5_Vulkan
           PS5_FRAMEGEN: ${{ github.workspace }}/PS5_MihawkGen
           PS5_VULKAN_DRIVER: ps5vk
           PS5_CLANG: /usr/bin/clang
+
         run: |
           set -euo pipefail
+
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
 
           LLD="$PS5_PAYLOAD_SDK/bin/prospero-lld"
+
           if [ -f "$LLD" ] && ! grep -q "wrap=pthread_create" "$LLD"; then
             mv "$LLD" "${LLD}.orig"
+
             cat << 'EOF' > "$LLD"
           #!/usr/bin/env bash
           case " $* " in
@@ -128,64 +185,137 @@ jobs:
               ;;
           esac
           EOF
+
             chmod +x "$LLD"
           fi
 
-          printf '#!/usr/bin/env python3\nimport sys; sys.exit(0)\n' > tools/build-lapy.py
-          sed -i '/lapy-root-daemon/d' tools/build-title.sh Makefile 2>/dev/null || true
+          # Skip Lapy daemon
+          printf '#!/usr/bin/env python3\nimport sys; sys.exit(0)\n' \
+            > tools/build-lapy.py
 
+          sed -i '/lapy-root-daemon/d' \
+            tools/build-title.sh Makefile 2>/dev/null || true
+
+          # Apply existing core compatibility patch
           python3 -c '
           import pathlib, re
+
           p = pathlib.Path("tools/check-core.py")
           txt = p.read_text()
+
           def add_fix(m):
               return m.group(0) + "    b = bytearray(path.read_bytes())\n    if len(b) > 8 and b.__getitem__(7) == 0:\n        b.__setitem__(7, 9)\n        path.write_bytes(b)\n"
+
           p.write_text(re.sub(r"def inspect\([^)]*\):\n", add_fix, txt, count=1))
           assert "__setitem__(7, 9)" in p.read_text()
           '
 
+          # Build mGBA only
           python3 -c '
           import pathlib
+
           bt = pathlib.Path("tools/build-title.sh")
           txt = bt.read_text()
+
           start = txt.index("core_names=(")
           end = txt.index(")", start) + 1
+
           bt.write_text(txt[:start] + "core_names=(mgba)" + txt[end:])
           assert "core_names=(mgba)" in bt.read_text()
 
           gm = pathlib.Path("tools/generate-core-metadata.py")
           gm_txt = gm.read_text()
-          gm_txt = gm_txt.replace("data = stella_data(source)", "if not source.exists(): continue\n        data = stella_data(source)")
+          gm_txt = gm_txt.replace(
+              "data = stella_data(source)",
+              "if not source.exists(): continue\n        data = stella_data(source)"
+          )
           gm.write_text(gm_txt)
           '
-          
-          bash tools/build-title.sh || {
+
+          # ------------------------------------------------
+          # Run build with full diagnostics
+          # ------------------------------------------------
+
+          echo "=========================================="
+          echo "Starting PS5 RetroArch mGBA build"
+          echo "=========================================="
+
+          if ! bash -x tools/build-title.sh 2>&1 | tee build-title.log; then
+
+            echo ""
+            echo "=========================================="
+            echo "BUILD FAILED"
+            echo "=========================================="
+
+            echo ""
+            echo "=== Last 200 lines of build output ==="
+            tail -n 200 build-title.log
+
+            echo ""
             echo "=== Dynamic exports in build ELF ==="
-            for f in $(find build -maxdepth 3 -type f \( -name "*.elf" -o -name "eboot*" \)); do
+
+            while IFS= read -r -d '' f; do
               echo "--- $f ---"
-              readelf -sW --dyn-syms "$f" 2>/dev/null | grep -v " UND " || true
-            done
-            echo "=== tools/build.sh ==="
+              readelf -sW --dyn-syms "$f" 2>/dev/null \
+                | grep -v " UND " || true
+            done < <(
+              find build -maxdepth 3 -type f \
+                \( -name "*.elf" -o -name "eboot*" \) \
+                -print0 2>/dev/null
+            )
+
+            echo ""
+            echo "=== Linker map diagnostics ==="
+
+            if [[ -f build/title.map ]]; then
+              tail -n 150 build/title.map
+            else
+              echo "No linker map generated."
+            fi
+
+            echo ""
+            echo "=== Build script ==="
             cat tools/build.sh
+
+            echo ""
+            echo "=== End diagnostics ==="
+
             exit 1
-          }
+          fi
+
+          # ------------------------------------------------
+          # Verify output
+          # ------------------------------------------------
 
           if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
             echo "ERROR: eboot.bin missing!"
             exit 1
           fi
+
           echo "RetroArch title (mGBA test) built successfully."
+
+      # --------------------------------------------------
+      # 6. Package PS5 title
+      # --------------------------------------------------
 
       - name: Package PPSA99169
         working-directory: PS5_RetroArch/dist
         shell: bash
         run: |
           set -euo pipefail
+
           test -d PPSA99169
+
           zip -qr "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" PPSA99169
+
           sha256sum "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip" \
             > "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip.sha256"
+
           ls -lh "$GITHUB_WORKSPACE/PPSA99169-ps5vk.zip"
+
+      # --------------------------------------------------
+      # 7. Upload compiled PS5 package
+      # --------------------------------------------------
 
       - name: Upload compiled PS5 package
         uses: actions/upload-artifact@v4
