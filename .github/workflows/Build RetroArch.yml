@@ -214,6 +214,25 @@ jobs:
             "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" \
             /tmp/vk_stub.o
 
+      - name: Fetch Mesa source for licence notices
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd "$GITHUB_WORKSPACE/PS5_Vulkan"
+
+          echo "Fetching pinned Mesa source..."
+          bash tools/fetch-mesa.sh
+
+          LICENSE_FILE=".deps/native/mesa/mesa-26.2.0/docs/license.rst"
+
+          if [[ ! -s "$LICENSE_FILE" ]]; then
+            echo "::error::Mesa licence file is missing: $LICENSE_FILE"
+            exit 1
+          fi
+
+          echo "Mesa licence verified:"
+          ls -lh "$LICENSE_FILE"
       # --------------------------------------------------
       # 5. Build PS5 RetroArch title
       # --------------------------------------------------
