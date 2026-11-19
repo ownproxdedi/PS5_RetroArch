@@ -208,6 +208,21 @@ jobs:
 
           bash tools/fetch-retroarch.sh
 
+      - name: Patch RetroArch Vulkan configure check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          file="vendor/retroarch/qb/config.libs.sh"
+
+          if [[ ! -f "$file" ]]; then
+            echo "ERROR: $file was not found"
+            find . -path "*/qb/config.libs.sh" -print
+            exit 1
+          fi
+
+          echo "Found: $file"
+          grep -n "check_lib.*VULKAN.*lvulkan.*vkCreateInstance" "$file"
       # --------------------------------------------------
       # 6. Configure mGBA-only test build
       # --------------------------------------------------
