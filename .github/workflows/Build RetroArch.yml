@@ -71,6 +71,28 @@ jobs:
           path: PS5_PayloadSDK
           fetch-depth: 0
 
+      - name: Checkout PS5 LLVM (licence notices)
+        uses: actions/checkout@v4
+        with:
+          repository: mihawk-99/PS5_LLVM
+          path: PS5_LLVM
+          fetch-depth: 1
+
+      - name: Verify LLVM licence
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LLVM_LICENSE="$GITHUB_WORKSPACE/PS5_LLVM/llvm/LICENSE.TXT"
+
+          if [[ ! -s "$LLVM_LICENSE" ]]; then
+            echo "::error::PS5 LLVM licence file is missing: $LLVM_LICENSE"
+            exit 1
+          fi
+
+          echo "LLVM licence found:"
+          ls -lh "$LLVM_LICENSE"
+
       # --------------------------------------------------
       # 3. Download prebuilt SDK and Vulkan bundle
       # --------------------------------------------------
