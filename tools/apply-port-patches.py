@@ -5342,6 +5342,26 @@ EDITS += [
 ]
 
 
+# 0138: PS5 supplies Vulkan through its own target-side link path.
+# Do not probe the host for -lvulkan when configuring the PS5 build.
+EDITS += [
+    (
+        "qb/config.libs.sh",
+        "if [ \"$HAVE_VULKAN\" != \"no\" ] && [ \"$OS\" = 'Win32' ]; then\n"
+        "   HAVE_VULKAN=yes\n"
+        "else\n"
+        "   check_lib '' VULKAN -lvulkan vkCreateInstance\n"
+        "fi\n",
+        "# patches/series, 0138: PS5 Vulkan configure without host -lvulkan probe.\n"
+        "if [ \"$HAVE_VULKAN\" != \"no\" ] && { [ \"$OS\" = 'Win32' ] || [ -n \"${PS5_PAYLOAD_SDK:-}\" ]; }; then\n"
+        "   HAVE_VULKAN=yes\n"
+        "else\n"
+        "   check_lib '' VULKAN -lvulkan vkCreateInstance\n"
+        "fi\n",
+        "patches/series, 0138: PS5 Vulkan configure without host -lvulkan probe",
+    ),
+]
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__.splitlines()[2].strip(), file=sys.stderr)
