@@ -252,6 +252,11 @@
 #       Makefile.common, configuration.c
 0107-offline-video-effects
 
+# 0138  configure Vulkan for PS5 without probing the host -lvulkan library;
+#       the PS5 build supplies its own target-side Vulkan link path
+0138-ps5-vulkan-configure-without-host-library
+
+
 0108  Full-composition Vulkan screenshots for gated console tests; preserve the game viewport and ordinary capture behavior.
 0109  Honor requested refresh at explicit fullscreen dimensions; automatic resolution keeps the highest refresh.
 0110  Expand overlay strips to both triangles for the existing list pipeline; retain UVs and alpha.
