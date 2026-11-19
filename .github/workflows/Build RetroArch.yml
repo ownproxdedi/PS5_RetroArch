@@ -158,8 +158,14 @@ jobs:
           gm_txt = gm_txt.replace("data = stella_data(source)", "if not source.exists(): continue\n        data = stella_data(source)")
           gm.write_text(gm_txt)
           '
-
-          bash tools/build-title.sh
+          
+          bash tools/build-title.sh || {
+            echo "=== Dynamic exports in raw ELF ==="
+            readelf -sW --dyn-syms dist/PPSA99169/* build/app/* 2>/dev/null | grep -v " UND " || true
+            echo "=== Makefile lines 90-135 ==="
+            sed -n '90,135p' Makefile
+            exit 1
+          }
 
           if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
             echo "ERROR: eboot.bin missing!"
