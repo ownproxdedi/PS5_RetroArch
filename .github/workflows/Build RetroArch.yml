@@ -123,20 +123,24 @@ jobs:
       # 4. Install Meson
       # --------------------------------------------------
 
-      - name: Install Meson 1.4+
+      - name: Install Meson and Python build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-venv
 
           python3 -m venv "$HOME/.venvs/meson"
+
           "$HOME/.venvs/meson/bin/pip" install --upgrade pip
-          "$HOME/.venvs/meson/bin/pip" install "meson>=1.4.0"
+          "$HOME/.venvs/meson/bin/pip" install \
+            "meson>=1.4.0" \
+            packaging \
+            mako
 
           echo "$HOME/.venvs/meson/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.venvs/meson/bin:$PATH"
 
+          python3 -c "import packaging, mako; print('Python dependencies OK')"
           meson --version
-
       # --------------------------------------------------
       # 4. Build RADV
       # --------------------------------------------------
