@@ -313,6 +313,24 @@ jobs:
           ls -lh dist/PPSA99169/eboot.bin
 
       # --------------------------------------------------
+      # 8. iagnose RetroArch
+      # --------------------------------------------------
+
+
+      - name: Diagnose RetroArch configure failure
+        if: failure()
+        run: |
+          LOG="PS5_RetroArch/build/ra-conf/configure.log"
+
+          if [ -f "$LOG" ]; then
+            echo "=========================================="
+            echo "RetroArch configure.log (last 150 lines)"
+            echo "=========================================="
+            tail -n 150 "$LOG"
+          else
+            echo "configure.log not found: $LOG"
+          fi
+      # --------------------------------------------------
       # 8. Package title
       # --------------------------------------------------
 
