@@ -265,7 +265,52 @@ jobs:
 
           print("Configured missing-source metadata handling.")
           PY
+
           
+      - name: Diagnose mGBA core ABI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=== Locate mGBA library ==="
+          find . -name "mgba_libretro.so" -print
+
+          core=$(find . -name "mgba_libretro.so" -print -quit)
+
+          if [[ -z "$core" ]]; then
+            echo "ERROR: mGBA library not found"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== File information ==="
+          file "$core"
+
+          echo ""
+          echo "=== ELF header ==="
+          readelf -h "$core"
+
+          echo ""
+          echo "=== ELF program headers ==="
+          readelf -l "$core"
+
+          echo ""
+          echo "=== Compiler environment ==="
+          echo "CC=${CC:-unset}"
+          echo "CXX=${CXX:-unset}"
+          echo "PS5_PAYLOAD_SDK=${PS5_PAYLOAD_SDK:-unset}"
+
+          echo ""
+          echo "=== Available Prospero compiler ==="
+          find . -path "*/bin/prospero-clang" -print
+
+      - name: Locate core ABI validation
+        shell: bash
+        run: |
+          grep -R -n -E \
+            "core ABI check failed|ELF64 little-endian FreeBSD" \
+            PS5_RetroArch/tools PS5_RetroArch/scripts 2>/dev/null || true
+
       # --------------------------------------------------
       # 7. Build RetroArch using RADV
       # --------------------------------------------------
