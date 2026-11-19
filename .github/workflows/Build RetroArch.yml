@@ -146,7 +146,7 @@ jobs:
           '
 
           python3 -c '
-          import pathlib, re
+          import pathlib
           bt = pathlib.Path("tools/build-title.sh")
           txt = bt.read_text()
           start = txt.index("core_names=(")
@@ -156,7 +156,7 @@ jobs:
 
           gm = pathlib.Path("tools/generate-core-metadata.py")
           gm_txt = gm.read_text()
-          gm_txt = "\n".join(line for line in gm_txt.splitlines() if not re.search(r"^\s*\x27(?!mgba)[a-z0-9_]+\x27\s*:", line))
+          gm_txt = gm_txt.replace("data = stella_data(source)", "if not source.exists(): continue\n        data = stella_data(source)")
           gm.write_text(gm_txt)
           '
 
