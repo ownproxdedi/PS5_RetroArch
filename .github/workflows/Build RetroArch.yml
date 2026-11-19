@@ -208,56 +208,6 @@ jobs:
 
           bash tools/fetch-retroarch.sh
           
-      - name: Diagnose RetroArch source location
-        shell: bash
-        run: |
-          echo "Current directory:"
-          pwd
-
-          echo "Matching files:"
-          find . -type f -path "*/vendor/retroarch/qb/config.libs.sh" -print
-
-          echo "Repository directories:"
-          find . -maxdepth 3 -type d -name vendor -print
-
-      - name: Patch RetroArch Vulkan library check for PS5
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          file=$(find . -path "*/vendor/retroarch/qb/config.libs.sh" -print -quit)
-
-          if [[ -z "$file" || ! -f "$file" ]]; then
-            echo "ERROR: config.libs.sh not found"
-            exit 1
-          fi
-
-          echo "Patching: $file"
-
-          python3 - "$file" <<'PY'
-          import pathlib
-          import sys
-
-          path = pathlib.Path(sys.argv[1])
-          source = path.read_text()
-
-          old = "check_lib '' VULKAN -lvulkan vkCreateInstance"
-
-          if old not in source:
-              raise SystemExit("ERROR: Expected Vulkan check not found")
-
-          new = """if [ "$OS" = 'BSD' ] && [ "$HAVE_VULKAN" != "no" ]; then
-             HAVE_VULKAN=yes
-          else
-             check_lib '' VULKAN -lvulkan vkCreateInstance
-          fi"""
-
-          path.write_text(source.replace(old, new, 1))
-          print("Vulkan configure check patched successfully")
-          PY
-
-          grep -n -A4 -B2 "HAVE_VULKAN=yes" "$file"
-
       # --------------------------------------------------
       # 6. Configure mGBA-only test build
       # --------------------------------------------------
