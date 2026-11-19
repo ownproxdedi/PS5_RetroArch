@@ -318,6 +318,52 @@ jobs:
           echo "Building PS5 PSBC compiler"
           echo "=========================================="
 
+          # Generate Mesa's missing format header in the compiler work copy.
+          # Inject this immediately before the PSBC make command.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          script = Path("tools/build-psbc-ps5.sh")
+          source = script.read_text()
+
+          marker = 'support_objects=(../../src/platform/ps5_agc_package.ps5.o'
+
+          if marker not in source:
+              raise SystemExit(
+                  "Could not locate PSBC build insertion point. "
+                  "The upstream build script may have changed."
+              )
+
+          injection = r'''
+          # Generate Mesa format enums required by u_formats.h.
+          format_dir="$tree/src/util/format"
+
+          echo "Generating Mesa u_format_gen.h..."
+
+          test -s "$format_dir/u_format_table.py"
+          test -s "$format_dir/u_format.yaml"
+
+          python3 "$format_dir/u_format_table.py" \
+              "$format_dir/u_format.yaml" \
+              --enums > "$format_dir/u_format_gen.h"
+
+          if [[ ! -s "$format_dir/u_format_gen.h" ]]; then
+              echo "ERROR: Failed to generate u_format_gen.h"
+              exit 1
+          fi
+
+          echo "Generated Mesa format header:"
+          ls -lh "$format_dir/u_format_gen.h"
+
+          '''
+
+          if "Generating Mesa u_format_gen.h" not in source:
+              source = source.replace(marker, injection + marker, 1)
+              script.write_text(source)
+
+          print("PSBC build script updated.")
+          PY
+
           bash tools/build-psbc-ps5.sh
 
           if [[ ! -d ".deps/work/psbc-ps5/third_party/opengnm-psbc/libpsbc" ]]; then
