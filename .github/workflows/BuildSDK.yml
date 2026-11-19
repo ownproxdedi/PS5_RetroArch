@@ -122,6 +122,9 @@ jobs:
             PS5_Vulkan/.deps/native/zlib \
             PS5_Vulkan/.deps/native/vulkan-runtime \
             PS5_Vulkan/.deps/native/psbc \
+            PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/src/util \
+            PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm/include \
+            PS5_Vulkan/.deps/work/psbc-ps5/third_party/Vulkan-Headers/include \
             PS5_Vulkan/build/driver/ps5 \
             PS5_Vulkan/build/host/ps5-native-tool
 
