@@ -278,6 +278,19 @@ jobs:
           echo "Checking RetroArch Vulkan linker flags..."
           grep -n -E 'vulkan|FORCE' \
             PS5_RetroArch/tools/build-retroarch.sh || true
+
+      - name: Check RADV Vulkan symbols
+        run: |
+          SDK="PS5_Vulkan/.deps/native/ps5-payload-sdk"
+          ARCHIVE="PS5_Vulkan/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a"
+
+          echo "Checking vkCreateInstance..."
+          "$SDK/bin/llvm-nm" --defined-only "$ARCHIVE" |
+            grep -E ' vkCreateInstance$' || true
+
+          echo "Checking RADV archive dependencies..."
+          "$SDK/bin/llvm-nm" --undefined-only "$ARCHIVE" |
+            head -40
       # --------------------------------------------------
       # 7. Build RetroArch using RADV
       # --------------------------------------------------
