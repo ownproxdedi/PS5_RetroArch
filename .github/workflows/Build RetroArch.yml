@@ -71,7 +71,6 @@ jobs:
           gh release download sdk-bundle-v1 -R "$GITHUB_REPOSITORY" -p "ps5vk-opengl-bundle.tar.gz" -D "$GITHUB_WORKSPACE"
           tar -xzf "$GITHUB_WORKSPACE/ps5vk-opengl-bundle.tar.gz" -C "$GITHUB_WORKSPACE"
 
-          # Find c11/threads.h anywhere in PS5_Mesa and stage it into opengnm-psbc include & src
           C11_DIR=$(find "$GITHUB_WORKSPACE/PS5_Mesa" -type d -name "c11" | head -n1)
           echo "Found c11 headers at: $C11_DIR"
           for dst in \
@@ -115,6 +114,74 @@ jobs:
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PS5_PAYLOAD_SDK/target/bin:$PATH"
 
+          # Provide static implementations of arc4random_buf, getaddrinfo, and freeaddrinfo for libsmb2
+          cat << 'EOF' > /tmp/smb2_compat.c
+          #include <stddef.h>
+          #include <stdint.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include <fcntl.h>
+          #include <unistd.h>
+          #include <sys/socket.h>
+          #include <netinet/in.h>
+          #include <arpa/inet.h>
+          #include <netdb.h>
+
+          void arc4random_buf(void *buf, size_t nbytes) {
+              uint8_t *p = (uint8_t *)buf;
+              int fd = open("/dev/urandom", O_RDONLY);
+              if (fd >= 0) {
+                  size_t off = 0;
+                  while (off < nbytes) {
+                      ssize_t r = read(fd, p + off, nbytes - off);
+                      if (r <= 0) break;
+                      off += (size_t)r;
+                  }
+                  close(fd);
+                  if (off == nbytes) return;
+              }
+              static uint64_t s = 0x9e3779b97f4a7c15ULL;
+              for (size_t i = 0; i < nbytes; i++) {
+                  s ^= s << 13; s ^= s >> 7; s ^= s << 17;
+                  p[i] = (uint8_t)(s & 0xff);
+              }
+          }
+
+          int getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res) {
+              if (!res) return EAI_FAIL;
+              uint16_t port = service ? (uint16_t)atoi(service) : 0;
+              struct in_addr addr;
+              if (!node || strcmp(node, "localhost") == 0) {
+                  addr.s_addr = htonl(INADDR_LOOPBACK);
+              } else if (inet_pton(AF_INET, node, &addr) != 1) {
+                  return EAI_NONAME;
+              }
+              struct addrinfo *ai = (struct addrinfo *)calloc(1, sizeof(struct addrinfo) + sizeof(struct sockaddr_in));
+              if (!ai) return EAI_MEMORY;
+              struct sockaddr_in *sa = (struct sockaddr_in *)(ai + 1);
+              sa->sin_family = AF_INET;
+              sa->sin_port = htons(port);
+              sa->sin_addr = addr;
+              ai->ai_family = AF_INET;
+              ai->ai_socktype = (hints && hints->ai_socktype) ? hints->ai_socktype : SOCK_STREAM;
+              ai->ai_protocol = (hints && hints->ai_protocol) ? hints->ai_protocol : IPPROTO_TCP;
+              ai->ai_addrlen = sizeof(struct sockaddr_in);
+              ai->ai_addr = (struct sockaddr *)sa;
+              *res = ai;
+              return 0;
+          }
+
+          void freeaddrinfo(struct addrinfo *res) {
+              while (res) {
+                  struct addrinfo *next = res->ai_next;
+                  free(res);
+                  res = next;
+              }
+          }
+          EOF
+          "$PS5_PAYLOAD_SDK/bin/prospero-clang" -c /tmp/smb2_compat.c -o /tmp/smb2_compat.o
+          "$PS5_PAYLOAD_SDK/bin/llvm-ar" rcs /tmp/libsmb2_compat.a /tmp/smb2_compat.o
+
           LLD="$PS5_PAYLOAD_SDK/bin/prospero-lld"
           if [ -f "$LLD" ] && ! grep -q "wrap=pthread_create" "$LLD"; then
             mv "$LLD" "${LLD}.orig"
@@ -122,7 +189,7 @@ jobs:
           #!/usr/bin/env bash
           case " $* " in
             *"libps5platform"*)
-              exec "${0}.orig" --wrap=pthread_create --wrap=pthread_join --wrap=pthread_detach "$@"
+              exec "${0}.orig" --wrap=pthread_create --wrap=pthread_join --wrap=pthread_detach "$@" /tmp/libsmb2_compat.a
               ;;
             *)
               exec "${0}.orig" "$@"
