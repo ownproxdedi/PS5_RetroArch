@@ -265,66 +265,7 @@ jobs:
 
           print("Configured missing-source metadata handling.")
           PY
-
-      
-      - name: Patch RetroArch Vulkan library check for PS5
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          file="vendor/retroarch/qb/config.libs.sh"
-
-          python3 - "$file" <<'PY'
-          import pathlib
-          import sys
-
-          path = pathlib.Path(sys.argv[1])
-          source = path.read_text()
-
-          old = '''if [ "$HAVE_VULKAN" != "no" ] && [ "$OS" = 'Win32' ]; then
-             HAVE_VULKAN=yes
-          else
-             check_lib '' VULKAN -lvulkan vkCreateInstance
-          fi'''
-
-          new = '''if [ "$HAVE_VULKAN" != "no" ] && { [ "$OS" = 'Win32' ] || [ "$OS" = 'BSD' ]; }; then
-             HAVE_VULKAN=yes
-          else
-             check_lib '' VULKAN -lvulkan vkCreateInstance
-          fi'''
-
-          if old not in source:
-              raise SystemExit("ERROR: Expected Vulkan check was not found; source unchanged")
-
-          path.write_text(source.replace(old, new, 1))
-          print("Successfully patched RetroArch Vulkan check for BSD/PS5")
-          PY
-          grep -n -A4 -B1 'check_lib.*VULKAN.*lvulkan' "$file"
-
-      - name: Diagnose RADV Vulkan libraries
-        run: |
-          echo "Searching for Vulkan libraries..."
-
-          find PS5_Vulkan -type f \
-            \( -name '*vulkan*.a' -o -name '*vulkan*.so' \) \
-            -print
-
-          echo "Checking RetroArch Vulkan linker flags..."
-          grep -n -E 'vulkan|FORCE' \
-            PS5_RetroArch/tools/build-retroarch.sh || true
-
-      - name: Check RADV Vulkan symbols
-        run: |
-          SDK="PS5_Vulkan/.deps/native/ps5-payload-sdk"
-          ARCHIVE="PS5_Vulkan/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a"
-
-          echo "Checking vkCreateInstance..."
-          "$SDK/bin/llvm-nm" --defined-only "$ARCHIVE" |
-            grep -E ' vkCreateInstance$' || true
-
-          echo "Checking RADV archive dependencies..."
-          "$SDK/bin/llvm-nm" --undefined-only "$ARCHIVE" |
-            head -40
+          
       # --------------------------------------------------
       # 7. Build RetroArch using RADV
       # --------------------------------------------------
