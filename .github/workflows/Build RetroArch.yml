@@ -77,10 +77,11 @@ jobs:
           path: PS5_RetroArch
           fetch-depth: 0
 
-      - name: Checkout PS5 Vulkan
+      - name: Checkout PS5 Vulkan repository
         uses: actions/checkout@v4
         with:
-          repository: mihawk-99/PS5_Vulkan
+          repository: ownproxdedi/PS5_Vulkan
+          ref: main
           path: PS5_Vulkan
           fetch-depth: 0
 
