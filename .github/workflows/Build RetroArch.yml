@@ -54,7 +54,6 @@ jobs:
           repository: mihawk-99/PS5_PayloadSDK
           path: PS5_PayloadSDK
           fetch-depth: 0
-
       - name: Download prebuilt SDK & ps5vk from sdk-bundle-v1 Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,6 +62,14 @@ jobs:
           set -euo pipefail
           gh release download sdk-bundle-v1 -R "$GITHUB_REPOSITORY" -p "ps5vk-opengl-bundle.tar.gz" -D "$GITHUB_WORKSPACE"
           tar -xzf "$GITHUB_WORKSPACE/ps5vk-opengl-bundle.tar.gz" -C "$GITHUB_WORKSPACE"
+
+          # Ensure Mesa c11/threads.h headers are present in opengnm-psbc/include
+          INC_DST="$GITHUB_WORKSPACE/PS5_Vulkan/.deps/work/psbc-ps5/third_party/opengnm-psbc/include"
+          mkdir -p "$INC_DST/c11"
+          if [ ! -f "$INC_DST/c11/threads.h" ]; then
+            git clone --depth 1 --branch mesa-26.2.0 https://freedesktop.org /tmp/mesa-hdr
+            cp -r /tmp/mesa-hdr/include/* "$INC_DST/"
+          fi
 
       - name: Fetch RetroArch dependencies and sources
         working-directory: PS5_RetroArch
