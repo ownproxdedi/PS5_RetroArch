@@ -284,3 +284,9 @@ bool ps5_smb_root(const ps5_smb_config *config, char *path, size_t size)
             : snprintf(path, size, "smb://%s/%s", config->server, config->share);
     return length > 0 && (size_t)length < size;
 }
+
+#include <stdlib.h>
+void ps5_smb_arc4random_buf(void *buf, size_t n) {
+    uint8_t *p = (uint8_t *)buf;
+    for (size_t i = 0; i < n; i++) p[i] = (uint8_t)(rand() & 0xff);
+}
