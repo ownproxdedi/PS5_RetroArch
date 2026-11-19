@@ -203,24 +203,30 @@ case $vulkan_driver in
     ps5vk | radv) ;;
     *) echo "PS5_VULKAN_DRIVER must be ps5vk or radv" >&2; exit 2 ;;
 esac
-[[ $vulkan_driver == ps5vk ]] || title_definition_names+=(PS5_RETROARCH_RADV)
-vulkan_archives=(
-    "$vulkan_dir/build/driver/ps5/libps5vk.ps5.a"
-    "$vulkan_dir/.deps/native/vulkan-runtime/lib/libvk_runtime.ps5.a"
-    "$vulkan_dir/build/driver/ps5/libpsbc_driver.ps5.a"
-    "$vulkan_dir/.deps/native/psbc/lib/libpsbc_support.ps5.a"
-)
-vulkan_missing=()
-for archive in "${vulkan_archives[@]}"; do
-    [[ -f $archive ]] || vulkan_missing+=("$archive")
-done
-if (( ${#vulkan_missing[@]} )); then
-    printf 'error: the Vulkan driver archives are missing; the title would link with\n' >&2
-    printf '       vkGetInstanceProcAddr unresolved. Build them in ../PS5_Vulkan\n' >&2
-    printf '       (tools/build-driver.sh) or set PS5_VULKAN_DIR.\n' >&2
-    printf '       missing: %s\n' "${vulkan_missing[@]}" >&2
-    exit 2
+vulkan_archives=()
+
+# Only require the PSBC archives when building the old ps5vk driver.
+if [[ $vulkan_driver == ps5vk ]]; then
+    vulkan_archives=(
+        "$vulkan_dir/build/driver/ps5/libps5vk.ps5.a"
+        "$vulkan_dir/.deps/native/vulkan-runtime/lib/libvk_runtime.ps5.a"
+        "$vulkan_dir/build/driver/ps5/libpsbc_driver.ps5.a"
+        "$vulkan_dir/.deps/native/psbc/lib/libpsbc_support.ps5.a"
+    )
+
+    vulkan_missing=()
+
+    for archive in "${vulkan_archives[@]}"; do
+        [[ -f $archive ]] || vulkan_missing+=("$archive")
+    done
+
+    if (( ${#vulkan_missing[@]} )); then
+        printf 'error: the PS5VK/PSBC archives are missing:\n' >&2
+        printf '       %s\n' "${vulkan_missing[@]}" >&2
+        exit 2
+    fi
 fi
+
 # The driver may be developed concurrently. A diagnostic link uses stable local
 # archive copies; hashes describe exactly which driver went into this build.
 if [[ $memory_diagnostics == 1 ]]; then
