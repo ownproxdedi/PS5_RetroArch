@@ -266,7 +266,19 @@ jobs:
           print("Configured missing-source metadata handling.")
           PY
 
-          
+      - name: Find core ABI checker
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE/PS5_RetroArch"
+
+          echo "Repository root:"
+          pwd
+
+          echo "Searching for ABI checker:"
+          grep -R -n -E \
+            "core ABI check failed|ELF64 little-endian FreeBSD" \
+            tools scripts 2>/dev/null || true
+            
       - name: Diagnose mGBA core ABI
         shell: bash
         run: |
