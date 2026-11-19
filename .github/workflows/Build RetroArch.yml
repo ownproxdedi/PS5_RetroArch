@@ -130,11 +130,12 @@ jobs:
 
           python3 -m venv "$HOME/.venvs/meson"
 
-          "$HOME/.venvs/meson/bin/pip" install --upgrade pip
+          "$HOME/.venvs/meson/bin/pip" install --upgrade pip         
           "$HOME/.venvs/meson/bin/pip" install \
             "meson>=1.4.0" \
             packaging \
-            mako
+            mako \
+            PyYAML
 
           echo "$HOME/.venvs/meson/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.venvs/meson/bin:$PATH"
