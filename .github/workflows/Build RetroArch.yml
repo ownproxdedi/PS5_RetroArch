@@ -256,7 +256,7 @@ jobs:
           lapy_text = lapy.read_text()
           m = re.search(r"LOG_SHA\s*=\s*[\"\x27]([0-9a-f]{64})[\"\x27]", lapy_text)
           prospero_dir = Path("../prospero-win-main")
-          ps5log_h = prosper_dir / "native/ps5log/ps5log.h"
+          ps5log_h = prospero_dir / "native/ps5log/ps5log.h"
           if m and ps5log_h.is_file():
               target_sha = m.group(1)
               matched_rev = None
