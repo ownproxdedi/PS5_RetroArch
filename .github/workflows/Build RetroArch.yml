@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -221,60 +221,34 @@ jobs:
           bash tools/fetch-retroarch.sh
 
       # --------------------------------------------------
-      # 7. Configure mGBA-only test build
+      # 7. Configure RADV full-core build
       # --------------------------------------------------
 
-      - name: Configure RADV mGBA test build
+      - name: Configure RADV full-core build
         working-directory: PS5_RetroArch
         shell: bash
         run: |
           set -euo pipefail
 
-          # 1. Restrict this test build to mGBA.
-          python3 -c '
-          from pathlib import Path
-          build = Path("tools/build-title.sh")
-          text = build.read_text()
-          start = text.index("core_names=(")
-          end = text.index(")", start) + 1
-          build.write_text(text[:start] + "core_names=(mgba)" + text[end:])
-          assert "core_names=(mgba)" in build.read_text()
-          print("Configured mGBA-only test build.")
-          '
-
-          # 2. Skip metadata for cores whose sources have not been fetched.
+          # 1. Tag every built *_libretro.so with FreeBSD OS/ABI (0x09) inside check-core.py.
           python3 -c '
           from pathlib import Path
           import sys
-          metadata = Path("tools/generate-core-metadata.py")
-          text = metadata.read_text()
-          old = "        data = stella_data(source) if stem == '\''stella'\'' else compile_tables(stem, source, flags, helper)"
-          new = (
-              "        if not source.is_file():\n"
-              "            print(f\"skip {stem}: missing source {source}\", file=sys.stderr)\n"
-              "            continue\n"
-              + old
+
+          cc = Path("tools/check-core.py")
+          text = cc.read_text()
+          target = "def inspect(path):"
+          replacement = (
+              "def inspect(path):\n"
+              "    subprocess.run([\"elfedit\", \"--output-osabi\", \"FreeBSD\", str(path)], check=False)\n"
           )
-          if old not in text:
-              sys.exit("Could not locate metadata generation line; check tools/generate-core-metadata.py")
-          metadata.write_text(text.replace(old, new, 1))
-          print("Configured missing-source metadata handling.")
+          if target not in text:
+              sys.exit("Could not locate def inspect(path): in tools/check-core.py")
+          cc.write_text(text.replace(target, replacement, 1))
+          print("Configured automatic FreeBSD OS/ABI tagging in tools/check-core.py.")
           '
 
-          # 3. Tag mgba_libretro.so with FreeBSD OS/ABI (0x09) as expected by check-core.py.
-          python3 -c '
-          from pathlib import Path
-          import sys
-          mgba = Path("tools/build-mgba.sh")
-          text = mgba.read_text()
-          copy_line = "cp -- \"$work/ps5-build/mgba/mgba_libretro.so\" \"$work/mgba_libretro.so\""
-          if copy_line not in text:
-              sys.exit("Could not locate mgba copy line in tools/build-mgba.sh")
-          mgba.write_text(text.replace(copy_line, copy_line + "\nelfedit --output-osabi FreeBSD \"$work/mgba_libretro.so\"", 1))
-          print("Configured FreeBSD OS/ABI tagging for mGBA.")
-          '
-
-          # 4. Align prospero-win-main commit or LOG_SHA in tools/build-lapy.py.
+          # 2. Align prospero-win-main commit or LOG_SHA in tools/build-lapy.py.
           python3 -c '
           import hashlib, re, subprocess
           from pathlib import Path
@@ -282,7 +256,7 @@ jobs:
           lapy_text = lapy.read_text()
           m = re.search(r"LOG_SHA\s*=\s*[\"\x27]([0-9a-f]{64})[\"\x27]", lapy_text)
           prospero_dir = Path("../prospero-win-main")
-          ps5log_h = prospero_dir / "native/ps5log/ps5log.h"
+          ps5log_h = prosper_dir / "native/ps5log/ps5log.h"
           if m and ps5log_h.is_file():
               target_sha = m.group(1)
               matched_rev = None
@@ -302,7 +276,7 @@ jobs:
                   actual_sha = hashlib.sha256(ps5log_h.read_bytes()).hexdigest()
                   lapy.write_text(lapy_text.replace(target_sha, actual_sha, 1))
                   print(f"Updated LOG_SHA in build-lapy.py to {actual_sha[:12]}.")
-              '
+          '
 
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
@@ -444,3 +418,24 @@ jobs:
             PPSA99169-radv.zip.sha256
             if-no-files-found: error
           retention-days: 14
+
+      # --------------------------------------------------
+      # 12. Publish GitHub Release
+      # --------------------------------------------------
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: radv-${{ github.run_number }}
+          name: PS5 RetroArch RADV (Build #${{ github.run_number }})
+          body: |
+            Automated RADV build of PS5 RetroArch (`PPSA99169`) with all 33 native cores.
+
+            - **Commit:** `${{ github.sha }}`
+            - **Vulkan Driver:** Mesa RADV (`ownproxdedi/PS5_Vulkan`)
+          files: |
+            PPSA99169-radv.zip
+            PPSA99169-radv.zip.sha256
+          draft: false
+          prerelease: true
+
