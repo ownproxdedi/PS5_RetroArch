@@ -416,21 +416,22 @@ jobs:
       # --------------------------------------------------
       # 10. Package title
       # --------------------------------------------------
+
       - name: Package PPSA99169 RADV
         working-directory: PS5_RetroArch/dist
         shell: bash
         run: |
           set -euo pipefail
+
           test -d PPSA99169
           test -s PPSA99169/eboot.bin
-          zip -qr 
-          "$GITHUB_WORKSPACE/PPSA99169-radv.zip" 
-          PPSA99169
-          sha256sum 
-          "$GITHUB_WORKSPACE/PPSA99169-radv.zip" 
-          > "$GITHUB_WORKSPACE/PPSA99169-radv.zip.sha256"
+
+          zip -qr "$GITHUB_WORKSPACE/PPSA99169-radv.zip" PPSA99169
+          sha256sum "$GITHUB_WORKSPACE/PPSA99169-radv.zip" > "$GITHUB_WORKSPACE/PPSA99169-radv.zip.sha256"
+
           echo "Package created:"
           ls -lh "$GITHUB_WORKSPACE/PPSA99169-radv.zip"
+
       # --------------------------------------------------
       # 11. Upload artifact
       # --------------------------------------------------
