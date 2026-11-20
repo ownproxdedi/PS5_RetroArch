@@ -369,9 +369,20 @@ jobs:
           "$PS5_PAYLOAD_SDK/bin/prospero-clang" -O2 -fPIC -c \
             build/radv-shim/radv_compat_shim.c \
             -o build/radv-shim/radv_compat_shim.o
-
+            
           SHIM_OBJ="$PWD/build/radv-shim/radv_compat_shim.o"
-          echo "APP_EXTRA_OBJECTS=\"\${APP_EXTRA_OBJECTS:-} $SHIM_OBJ\"" >> "$PS5_VULKAN_DIR/tools/radv-link.sh"
+          python3 -c '
+          from pathlib import Path
+          import sys
+          bt = Path("tools/build-title.sh")
+          text = bt.read_text()
+          shim = sys.argv[1]
+          if "APP_EXTRA_OBJECTS=" not in text:
+              sys.exit("APP_EXTRA_OBJECTS= not found in tools/build-title.sh")
+          text = text.replace("APP_EXTRA_OBJECTS=", f"APP_EXTRA_OBJECTS=\"{shim} \"", 1)
+          bt.write_text(text)
+          print(f"Injected {shim} into tools/build-title.sh")
+          ' "$SHIM_OBJ"
 
           bash -x tools/build-title.sh 2>&1 | tee build-title.log
 
