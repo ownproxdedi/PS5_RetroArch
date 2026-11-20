@@ -60,6 +60,27 @@ cmake -S "$root/tooling/mgba" -B "$work/ps5-build" \
     -DMGBA_SOURCE_DIR="$work" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$work/ps5-build" --target mgba_libretro --parallel "${JOBS:-8}"
 cp -- "$work/ps5-build/mgba/mgba_libretro.so" "$work/mgba_libretro.so"
+
+
+echo "=========================================="
+echo "mGBA ELF diagnostics"
+echo "=========================================="
+
+echo "Library: $work/mgba_libretro.so"
+
+file "$work/mgba_libretro.so"
+
+echo ""
+echo "ELF header:"
+readelf -h "$work/mgba_libretro.so"
+
+echo ""
+echo "First 16 ELF bytes:"
+od -An -tx1 -N16 "$work/mgba_libretro.so"
+
+echo "=========================================="
+
+
 python3 tools/check-core.py "$work/mgba_libretro.so" --report "$work/abi.json"
 cp -- "$work/mgba_libretro.so" "$stage/cores/mgba_libretro.so"
 cp -- "$info" "$stage/info/mgba_libretro.info"
