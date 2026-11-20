@@ -283,6 +283,14 @@ jobs:
           if [ -f tools/build-mgba.sh ]; then
             echo "--- tools/build-mgba.sh ---"
             cat tools/build-mgba.sh
+            echo "--- tooling/mgba/ps5-toolchain.cmake ---"
+            cat tooling/mgba/ps5-toolchain.cmake
+            echo "--- tooling/mgba/CMakeLists.txt ---"
+            cat tooling/mgba/CMakeLists.txt
+            echo "--- tools/check-core.py ---"
+            cat tools/check-core.py
+            echo "--- prospero-clang wrapper ---"
+            cat "$PS5_PAYLOAD_SDK/bin/prospero-clang"
           fi
 
           # Remove any stale host-built mGBA cache
