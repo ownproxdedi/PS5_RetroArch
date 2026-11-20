@@ -151,13 +151,15 @@ jobs:
             "meson>=1.4.0" \
             packaging \
             mako \
-            PyYAML
+            PyYAML \
+            Pillow
 
           echo "$HOME/.venvs/meson/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.venvs/meson/bin:$PATH"
 
-          python3 -c "import packaging, mako, yaml; print('Python dependencies OK')"
+          python3 -c "import packaging, mako, yaml, PIL; print('Python dependencies OK')"
           meson --version
+
 
       # --------------------------------------------------
       # 5. Build RADV
