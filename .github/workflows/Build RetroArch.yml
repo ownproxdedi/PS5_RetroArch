@@ -277,7 +277,27 @@ jobs:
                   lapy.write_text(lapy_text.replace(target_sha, actual_sha, 1))
                   print(f"Updated LOG_SHA in build-lapy.py to {actual_sha[:12]}.")
           '
+          # 3. Redirect www.nasm.us downloads to GitHub's netwide-assembler/nasm releases mirror.
+          python3 -c '
+          from pathlib import Path
+          import re
 
+          patched = 0
+          for script in sorted(Path("tools").glob("*.sh")):
+              text = script.read_text()
+              if "nasm.us" not in text:
+                  continue
+              new_text, count = re.subn(
+                  r"https?://(?:www\.)?nasm\.us/pub/nasm/releasebuilds/([^/\"'\''\s]+)/(nasm-\1\.tar\.(?:xz|gz|bz2))",
+                  r"https://github.com\1/\2",
+                  text,
+              )
+              if count:
+                  script.write_text(new_text)
+                  patched += 1
+          print(f"Redirected nasm.us URLs in {patched} build script(s).")
+          '
+          
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
       # --------------------------------------------------
