@@ -215,7 +215,7 @@ jobs:
           from pathlib import Path
           import sys
 
-          # Restrict this test build to mGBA.
+          # 1. Restrict this test build to mGBA.
           build = Path("tools/build-title.sh")
           text = build.read_text()
 
@@ -228,8 +228,7 @@ jobs:
           assert "core_names=(mgba)" in build.read_text()
           print("Configured mGBA-only test build.")
 
-          # Skip metadata for cores whose sources have not been fetched.
-          # The mGBA metadata is still required and checked by build-title.sh.
+          # 2. Skip metadata for cores whose sources have not been fetched.
           metadata = Path("tools/generate-core-metadata.py")
           text = metadata.read_text()
 
@@ -253,6 +252,21 @@ jobs:
 
           metadata.write_text(text.replace(old, new, 1))
           print("Configured missing-source metadata handling.")
+
+          # 3. Tag mgba_libretro.so with FreeBSD OS/ABI (0x09) as expected by check-core.py.
+          mgba = Path("tools/build-mgba.sh")
+          mgba_text = mgba.read_text()
+          copy_line = 'cp -- "$work/ps5-build/mgba/mgba_libretro.so" "$work/mgba_libretro.so"'
+
+          if copy_line not in mgba_text:
+              sys.exit("Could not locate mgba copy line in tools/build-mgba.sh")
+
+          mgba.write_text(mgba_text.replace(
+              copy_line,
+              copy_line + '\nelfedit --output-osabi FreeBSD "$work/mgba_libretro.so"',
+              1,
+          ))
+          print("Configured FreeBSD OS/ABI tagging for mGBA.")
           PY
 
       # --------------------------------------------------
@@ -273,28 +287,6 @@ jobs:
 
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
-
-          echo "=========================================="
-          echo "Inspecting PS5 SDK & mGBA build script"
-          echo "=========================================="
-          ls -la "$PS5_PAYLOAD_SDK" || true
-          find "$PS5_PAYLOAD_SDK" -maxdepth 3 -name "*cmake*" -o -name "*clang*" || true
-
-          if [ -f tools/build-mgba.sh ]; then
-            echo "--- tools/build-mgba.sh ---"
-            cat tools/build-mgba.sh
-            echo "--- tooling/mgba/ps5-toolchain.cmake ---"
-            cat tooling/mgba/ps5-toolchain.cmake
-            echo "--- tooling/mgba/CMakeLists.txt ---"
-            cat tooling/mgba/CMakeLists.txt
-            echo "--- tools/check-core.py ---"
-            cat tools/check-core.py
-            echo "--- prospero-clang wrapper ---"
-            cat "$PS5_PAYLOAD_SDK/bin/prospero-clang"
-          fi
-
-          # Remove any stale host-built mGBA cache
-          rm -rf build/cores/mgba
 
           echo "=========================================="
           echo "Starting PS5 RetroArch RADV build"
@@ -325,25 +317,21 @@ jobs:
       # --------------------------------------------------
       # 9. Failure diagnostics
       # --------------------------------------------------
-
       - name: Diagnose RetroArch configure failure
         if: failure()
         run: |
           LOG="PS5_RetroArch/build/ra-conf/configure.log"
-
           if [ -f "$LOG" ]; then
-            echo "=========================================="
-            echo "RetroArch configure.log (last 150 lines)"
-            echo "=========================================="
-            tail -n 150 "$LOG"
+          echo "=========================================="
+          echo "RetroArch configure.log (last 150 lines)"
+          echo "=========================================="
+          tail -n 150 "$LOG"
           else
-            echo "configure.log not found: $LOG"
+          echo "configure.log not found: $LOG"
           fi
-
-
-      # --------------------------------------------------
-      # 10. Package title
-      # --------------------------------------------------
+        # --------------------------------------------------
+        # 10. Package title
+        # --------------------------------------------------
       - name: Package PPSA99169 RADV
         working-directory: PS5_RetroArch/dist
         shell: bash
@@ -359,9 +347,9 @@ jobs:
           > "$GITHUB_WORKSPACE/PPSA99169-radv.zip.sha256"
           echo "Package created:"
           ls -lh "$GITHUB_WORKSPACE/PPSA99169-radv.zip"
-      # --------------------------------------------------
-      # 11. Upload artifact
-      # --------------------------------------------------
+        # --------------------------------------------------
+        # 11. Upload artifact
+        # --------------------------------------------------
       - name: Upload PS5 RetroArch RADV package
         uses: actions/upload-artifact@v4
         with:
