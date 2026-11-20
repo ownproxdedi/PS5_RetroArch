@@ -107,6 +107,15 @@ jobs:
           ref: main
           path: prospero-win-main
           fetch-depth: 0
+          
+      - name: Checkout PS5-Lapy-JB-Daemon
+        uses: actions/checkout@v4
+        with:
+          repository: mpereiraesaa/PS5-Lapy-JB-Daemon
+          ref: main
+          path: PS5-Lapy-JB-Daemon
+          fetch-depth: 0
+
 
       # --------------------------------------------------
       # 3. Verify LLVM licence
