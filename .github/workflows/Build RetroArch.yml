@@ -305,6 +305,7 @@ jobs:
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
       # --------------------------------------------------
+
       - name: Build PS5 RetroArch with RADV
         working-directory: PS5_RetroArch
         shell: bash
@@ -316,33 +317,26 @@ jobs:
           PS5_CLANG: /usr/bin/clang
         run: |
           set -euo pipefail
+
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
+
           echo "=========================================="
           echo "Starting PS5 RetroArch RADV build"
           echo "=========================================="
           echo "PS5_PAYLOAD_SDK: $PS5_PAYLOAD_SDK"
           echo "Selected Vulkan driver: $PS5_VULKAN_DRIVER"
+
           RADV_ARCHIVE="$PS5_VULKAN_DIR/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a"
+
           if [[ ! -s "$RADV_ARCHIVE" ]]; then
-          echo "::error::RADV archive is missing: $RADV_ARCHIVE"
-          exit 1
+            echo "::error::RADV archive is missing: $RADV_ARCHIVE"
+            exit 1
           fi
 
-          echo "=== Makefile Vulkan driver wiring ==="
-          grep -n -C 5 "PS5_VULKAN_DRIVER\|present_clock\|radv" Makefile || true
-          echo "=== radv-link.sh ==="
-          cat "$PS5_VULKAN_DIR/tools/radv-link.sh" || true
-          echo "=== present_clock_ps5vk.c ==="
-          cat src/present_clock_ps5vk.c || true
-
-          echo "=== Building RADV compatibility shim ==="
           PROC_ADDR_SYM=$(llvm-nm -g --defined-only "$RADV_ARCHIVE" | awk '/GetInstanceProcAddr$/ {print $3; exit}')
-          echo "Detected RADV entry point: ${PROC_ADDR_SYM:-none}"
-
           if [[ -z "${PROC_ADDR_SYM:-}" ]]; then
             echo "::error::No *GetInstanceProcAddr symbol found in $RADV_ARCHIVE"
-            llvm-nm -g --defined-only "$RADV_ARCHIVE" | head -n 40
             exit 1
           fi
 
@@ -374,28 +368,19 @@ jobs:
             -o build/radv-shim/radv_compat_shim.o
 
           SHIM_OBJ="$PWD/build/radv-shim/radv_compat_shim.o"
-          python3 -c '
-          from pathlib import Path
-          import sys
-          link_sh = Path(sys.argv[1])
-          shim_obj = sys.argv[2]
-          text = link_sh.read_text()
-          if "APP_EXTRA_OBJECTS=" not in text:
-              sys.exit(f"APP_EXTRA_OBJECTS= not found in {link_sh}")
-          text = text.replace("APP_EXTRA_OBJECTS=", f"APP_EXTRA_OBJECTS=\"{shim_obj} \"", 1)
-          link_sh.write_text(text)
-          print(f"Injected {shim_obj} into {link_sh}")
-          ' "$PS5_VULKAN_DIR/tools/radv-link.sh" "$SHIM_OBJ"
+          echo "APP_EXTRA_OBJECTS=\"\${APP_EXTRA_OBJECTS:-} $SHIM_OBJ\"" >> "$PS5_VULKAN_DIR/tools/radv-link.sh"
 
-          
           bash -x tools/build-title.sh 2>&1 | tee build-title.log
+
           if [[ ! -s dist/PPSA99169/eboot.bin ]]; then
-          echo "::error::PS5 eboot.bin was not generated"
-          exit 1
+            echo "::error::PS5 eboot.bin was not generated"
+            exit 1
           fi
+
           echo "=========================================="
           echo "RetroArch RADV build completed"
           echo "=========================================="
+
           ls -lh dist/PPSA99169/eboot.bin
       # --------------------------------------------------
       # 9. Failure diagnostics
