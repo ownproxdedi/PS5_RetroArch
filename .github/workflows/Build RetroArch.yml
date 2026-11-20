@@ -280,23 +280,25 @@ jobs:
           # 3. Redirect www.nasm.us downloads to GitHub's netwide-assembler/nasm releases mirror.
           python3 -c '
           from pathlib import Path
-          import re
 
           patched = 0
           for script in sorted(Path("tools").glob("*.sh")):
               text = script.read_text()
               if "nasm.us" not in text:
                   continue
-              new_text, count = re.subn(
-                  r"https?://(?:www\.)?nasm\.us/pub/nasm/releasebuilds/([^/\"'\''\s]+)/(nasm-\1\.tar\.(?:xz|gz|bz2))",
-                  r"https://github.com\1/\2",
-                  text,
+              new_text = text.replace(
+                  "https://nasm.us",
+                  "https://github.com",
+              ).replace(
+                  "https://nasm.us",
+                  "https://github.com",
               )
-              if count:
+              if new_text != text:
                   script.write_text(new_text)
                   patched += 1
           print(f"Redirected nasm.us URLs in {patched} build script(s).")
           '
+
           
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
@@ -433,11 +435,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PPSA99169-radv
-          path: |
-            PPSA99169-radv.zip
-            PPSA99169-radv.zip.sha256
-            if-no-files-found: error
+          path: PS5_RetroArch/dist/PPSA99169
+          if-no-files-found: error
           retention-days: 14
+
 
       # --------------------------------------------------
       # 12. Publish GitHub Release
