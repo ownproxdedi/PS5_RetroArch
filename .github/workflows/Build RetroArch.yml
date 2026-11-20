@@ -333,8 +333,11 @@ jobs:
             echo "::error::RADV archive is missing: $RADV_ARCHIVE"
             exit 1
           fi
+          
+          NM_TOOL=$(command -v llvm-nm-18 || command -v llvm-nm || command -v nm)
+          PROC_ADDR_SYM=$("$NM_TOOL" -g --defined-only "$RADV_ARCHIVE" 2>/dev/null | awk '/GetInstanceProcAddr$/ {print $NF; exit}' || true)
+          echo "Detected RADV entry point: ${PROC_ADDR_SYM:-none}"
 
-          PROC_ADDR_SYM=$(llvm-nm -g --defined-only "$RADV_ARCHIVE" | awk '/GetInstanceProcAddr$/ {print $3; exit}')
           if [[ -z "${PROC_ADDR_SYM:-}" ]]; then
             echo "::error::No *GetInstanceProcAddr symbol found in $RADV_ARCHIVE"
             exit 1
