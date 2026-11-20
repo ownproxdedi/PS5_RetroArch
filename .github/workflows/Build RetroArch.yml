@@ -256,7 +256,7 @@ jobs:
           lapy_text = lapy.read_text()
           m = re.search(r"LOG_SHA\s*=\s*[\"\x27]([0-9a-f]{64})[\"\x27]", lapy_text)
           prospero_dir = Path("../prospero-win-main")
-          ps5log_h = prospero_dir / "native/ps5log/ps5log.h"
+          ps5log_h = prosper_dir / "native/ps5log/ps5log.h"
           if m and ps5log_h.is_file():
               target_sha = m.group(1)
               matched_rev = None
@@ -277,7 +277,8 @@ jobs:
                   lapy.write_text(lapy_text.replace(target_sha, actual_sha, 1))
                   print(f"Updated LOG_SHA in build-lapy.py to {actual_sha[:12]}.")
           '
-          # 3. Redirect www.nasm.us downloads to GitHub's netwide-assembler/nasm releases mirror.
+
+          # 3. Redirect www.nasm.us downloads to a working mirror (Sortix / GitHub).
           python3 -c '
           from pathlib import Path
 
@@ -288,17 +289,16 @@ jobs:
                   continue
               new_text = text.replace(
                   "https://nasm.us",
-                  "https://github.com",
+                  "https://sortix.org",
               ).replace(
-                  "https://nasm.us",
-                  "https://github.com",
+                  "http://nasm.us",
+                  "https://sortix.org",
               )
               if new_text != text:
                   script.write_text(new_text)
                   patched += 1
           print(f"Redirected nasm.us URLs in {patched} build script(s).")
           '
-
           
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
