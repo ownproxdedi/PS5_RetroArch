@@ -100,6 +100,14 @@ jobs:
           path: PS5_LLVM
           fetch-depth: 1
 
+      - name: Checkout prospero-win (for Lapy ps5log)
+        uses: actions/checkout@v4
+        with:
+          repository: mpereiraesaa/prospero-win
+          ref: main
+          path: prospero-win-main
+          fetch-depth: 0
+
       # --------------------------------------------------
       # 3. Verify LLVM licence
       # --------------------------------------------------
@@ -307,52 +315,50 @@ jobs:
             echo "::error::PS5 eboot.bin was not generated"
             exit 1
           fi
-
+          
           echo "=========================================="
           echo "RetroArch RADV build completed"
           echo "=========================================="
-
           ls -lh dist/PPSA99169/eboot.bin
-
-      # --------------------------------------------------
-      # 9. Failure diagnostics
-      # --------------------------------------------------
-      - name: Diagnose RetroArch configure failure
-        if: failure()
-        run: |
-          LOG="PS5_RetroArch/build/ra-conf/configure.log"
-          if [ -f "$LOG" ]; then
-          echo "=========================================="
-          echo "RetroArch configure.log (last 150 lines)"
-          echo "=========================================="
-          tail -n 150 "$LOG"
-          else
-          echo "configure.log not found: $LOG"
-          fi
-        # --------------------------------------------------
-        # 10. Package title
-        # --------------------------------------------------
-      - name: Package PPSA99169 RADV
-        working-directory: PS5_RetroArch/dist
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -d PPSA99169
-          test -s PPSA99169/eboot.bin
-          zip -qr 
-          "$GITHUB_WORKSPACE/PPSA99169-radv.zip" 
-          PPSA99169
-          sha256sum 
-          "$GITHUB_WORKSPACE/PPSA99169-radv.zip" 
-          > "$GITHUB_WORKSPACE/PPSA99169-radv.zip.sha256"
-          echo "Package created:"
-          ls -lh "$GITHUB_WORKSPACE/PPSA99169-radv.zip"
-        # --------------------------------------------------
-        # 11. Upload artifact
-        # --------------------------------------------------
-      - name: Upload PS5 RetroArch RADV package
-        uses: actions/upload-artifact@v4
-        with:
+          # --------------------------------------------------
+          # 9. Failure diagnostics
+          # --------------------------------------------------
+          - name: Diagnose RetroArch configure failure
+          if: failure()
+          run: |
+            LOG="PS5_RetroArch/build/ra-conf/configure.log"
+            if [ -f "$LOG" ]; then
+              echo "=========================================="
+              echo "RetroArch configure.log (last 150 lines)"
+              echo "=========================================="
+              tail -n 150 "$LOG"
+              else
+              echo "configure.log not found: $LOG"
+            fi
+          # --------------------------------------------------
+          # 10. Package title
+          # --------------------------------------------------
+          - name: Package PPSA99169 RADV
+          working-directory: PS5_RetroArch/dist
+          shell: bash
+          run: |
+            set -euo pipefail
+            test -d PPSA99169
+            test -s PPSA99169/eboot.bin
+            zip -qr 
+            "$GITHUB_WORKSPACE/PPSA99169-radv.zip" 
+            PPSA99169
+            sha256sum 
+            "$GITHUB_WORKSPACE/PPSA99169-radv.zip" 
+            > "$GITHUB_WORKSPACE/PPSA99169-radv.zip.sha256"
+            echo "Package created:"
+            ls -lh "$GITHUB_WORKSPACE/PPSA99169-radv.zip"
+          # --------------------------------------------------
+          # 11. Upload artifact
+          # --------------------------------------------------
+          - name: Upload PS5 RetroArch RADV package
+          uses: actions/upload-artifact@v4
+          with:
           name: PPSA99169-radv
           path: |
             PPSA99169-radv.zip
