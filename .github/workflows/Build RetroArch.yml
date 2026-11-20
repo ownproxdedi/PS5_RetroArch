@@ -299,7 +299,27 @@ jobs:
                   patched += 1
           print(f"Redirected nasm.us URLs in {patched} build script(s).")
           '
-          
+          # 4. Disable 256-bit VAES intrinsics in MAME's 7z/lzma (unsupported on PS5 Zen 2).
+          python3 -c '
+          from pathlib import Path
+          import sys
+
+          mame = Path("tools/build-mame.sh")
+          text = mame.read_text()
+          if "AesOpt.c" not in text:
+              lines = text.splitlines()
+              inserted = False
+              for i, line in enumerate(lines):
+                  if "make " in line and ("freebsd_x64_clang" in line or "-C " in line or "-f " in line):
+                      lines.insert(i, "sed -i \"1i #define _7ZIP_NO_ASM\" \"$src/3rdparty/lzma/C/AesOpt.c\" 2>/dev/null || find .deps/mame-src -name AesOpt.c -exec sed -i \"1i #define _7ZIP_NO_ASM\" {} +")
+                      inserted = True
+                      break
+              if not inserted:
+                  sys.exit("Could not locate make command in tools/build-mame.sh")
+              mame.write_text("\n".join(lines) + "\n")
+              print("Configured _7ZIP_NO_ASM patch for MAME AesOpt.c.")
+          '
+       
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
       # --------------------------------------------------
