@@ -219,103 +219,80 @@ jobs:
         run: |
           set -euo pipefail
 
-          python3 - <<'PY'
-          import hashlib
-          from pathlib import Path
-          import re
-          import subprocess
-          import sys
-
           # 1. Restrict this test build to mGBA.
+          python3 -c '
+          from pathlib import Path
           build = Path("tools/build-title.sh")
           text = build.read_text()
-
           start = text.index("core_names=(")
           end = text.index(")", start) + 1
-
-          text = text[:start] + "core_names=(mgba)" + text[end:]
-          build.write_text(text)
-
+          build.write_text(text[:start] + "core_names=(mgba)" + text[end:])
           assert "core_names=(mgba)" in build.read_text()
           print("Configured mGBA-only test build.")
+          '
 
           # 2. Skip metadata for cores whose sources have not been fetched.
+          python3 -c '
+          from pathlib import Path
+          import sys
           metadata = Path("tools/generate-core-metadata.py")
           text = metadata.read_text()
-
-          old = (
-              "        data = stella_data(source) if stem == 'stella' "
-              "else compile_tables(stem, source, flags, helper)"
-          )
-
+          old = "        data = stella_data(source) if stem == '\''stella'\'' else compile_tables(stem, source, flags, helper)"
           new = (
               "        if not source.is_file():\n"
-              "            print(f'skip {stem}: missing source {source}', "
-              "file=sys.stderr)\n"
+              "            print(f\"skip {stem}: missing source {source}\", file=sys.stderr)\n"
               "            continue\n"
-              "        data = stella_data(source) if stem == 'stella' "
-              "else compile_tables(stem, source, flags, helper)"
+              + old
           )
-
           if old not in text:
-              sys.exit("Could not locate metadata generation line; "
-                       "check tools/generate-core-metadata.py")
-
+              sys.exit("Could not locate metadata generation line; check tools/generate-core-metadata.py")
           metadata.write_text(text.replace(old, new, 1))
           print("Configured missing-source metadata handling.")
+          '
 
           # 3. Tag mgba_libretro.so with FreeBSD OS/ABI (0x09) as expected by check-core.py.
+          python3 -c '
+          from pathlib import Path
+          import sys
           mgba = Path("tools/build-mgba.sh")
-          mgba_text = mgba.read_text()
-          copy_line = 'cp -- "$work/ps5-build/mgba/mgba_libretro.so" "$work/mgba_libretro.so"'
-
-          if copy_line not in mgba_text:
+          text = mgba.read_text()
+          copy_line = "cp -- \"$work/ps5-build/mgba/mgba_libretro.so\" \"$work/mgba_libretro.so\""
+          if copy_line not in text:
               sys.exit("Could not locate mgba copy line in tools/build-mgba.sh")
-
-          mgba.write_text(mgba_text.replace(
-              copy_line,
-              copy_line + '\nelfedit --output-osabi FreeBSD "$work/mgba_libretro.so"',
-              1,
-          ))
+          mgba.write_text(text.replace(copy_line, copy_line + "\nelfedit --output-osabi FreeBSD \"$work/mgba_libretro.so\"", 1))
           print("Configured FreeBSD OS/ABI tagging for mGBA.")
+          '
 
           # 4. Align prospero-win-main commit or LOG_SHA in tools/build-lapy.py.
+          python3 -c '
+          import hashlib, re, subprocess
+          from pathlib import Path
           lapy = Path("tools/build-lapy.py")
           lapy_text = lapy.read_text()
-          m = re.search(r"LOG_SHA\s*=\s*['\"]([0-9a-f]{64})['\"]", lapy_text)
+          m = re.search(r"LOG_SHA\s*=\s*[\"\x27]([0-9a-f]{64})[\"\x27]", lapy_text)
           prospero_dir = Path("../prospero-win-main")
           ps5log_h = prosper_dir / "native/ps5log/ps5log.h"
-
           if m and ps5log_h.is_file():
               target_sha = m.group(1)
               matched_rev = None
-              revs = subprocess.check_output(
-                  ["git", "-C", str(prospero_dir), "rev-list", "HEAD"],
-                  text=True,
-              ).splitlines()
+              revs = subprocess.check_output(["git", "-C", str(prospero_dir), "rev-list", "HEAD"], text=True).splitlines()
               for rev in revs:
                   try:
-                      blob = subprocess.check_output(
-                          ["git", "-C", str(prospero_dir), "show", f"{rev}:native/ps5log/ps5log.h"],
-                          stderr=subprocess.DEVNULL,
-                      )
+                      blob = subprocess.check_output(["git", "-C", str(prospero_dir), "show", f"{rev}:native/ps5log/ps5log.h"], stderr=subprocess.DEVNULL)
                   except subprocess.CalledProcessError:
                       continue
                   if hashlib.sha256(blob).hexdigest() == target_sha:
                       matched_rev = rev
                       break
-
               if matched_rev:
-                  subprocess.run(
-                      ["git", "-C", str(prospero_dir), "checkout", "-q", matched_rev],
-                      check=True,
-                  )
-              print(f"Checked out matching prospero-win commit {matched_rev[:12]} for Lapy.")
+                  subprocess.run(["git", "-C", str(prospero_dir), "checkout", "-q", matched_rev], check=True)
+                  print(f"Checked out matching prospero-win commit {matched_rev[:12]} for Lapy.")
               else:
-                actual_sha = hashlib.sha256(ps5log_h.read_bytes()).hexdigest()
-                lapy.write_text(lapy_text.replace(target_sha, actual_sha, 1))
-                print(f"Updated LOG_SHA in build-lapy.py to {actual_sha[:12]}.")
-              PY
+                  actual_sha = hashlib.sha256(ps5log_h.read_bytes()).hexdigest()
+                  lapy.write_text(lapy_text.replace(target_sha, actual_sha, 1))
+                  print(f"Updated LOG_SHA in build-lapy.py to {actual_sha[:12]}.")
+              '
+
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
       # --------------------------------------------------
