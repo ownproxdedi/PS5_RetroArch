@@ -275,6 +275,20 @@ jobs:
           export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
 
           echo "=========================================="
+          echo "Inspecting PS5 SDK & mGBA build script"
+          echo "=========================================="
+          ls -la "$PS5_PAYLOAD_SDK" || true
+          find "$PS5_PAYLOAD_SDK" -maxdepth 3 -name "*cmake*" -o -name "*clang*" || true
+
+          if [ -f tools/build-mgba.sh ]; then
+            echo "--- tools/build-mgba.sh ---"
+            cat tools/build-mgba.sh
+          fi
+
+          # Remove any stale host-built mGBA cache
+          rm -rf build/cores/mgba
+
+          echo "=========================================="
           echo "Starting PS5 RetroArch RADV build"
           echo "=========================================="
           echo "PS5_PAYLOAD_SDK: $PS5_PAYLOAD_SDK"
