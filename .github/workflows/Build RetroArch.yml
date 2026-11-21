@@ -311,7 +311,7 @@ jobs:
               inserted = False
               for i, line in enumerate(lines):
                   if "make " in line and ("freebsd_x64_clang" in line or "-C " in line or "-f " in line):
-                      lines.insert(i, "sed -i \"1i #define _7ZIP_NO_ASM\" \"$src/3rdparty/lzma/C/AesOpt.c\" 2>/dev/null || find .deps/mame-src -name AesOpt.c -exec sed -i \"1i #define _7ZIP_NO_ASM\" {} +")
+                      lines.insert(i, "sed -i \"1i #define _7ZIP_NO_ASM\" \"$root/.deps/mame-src/3rdparty/lzma/C/AesOpt.c\"")
                       inserted = True
                       break
               if not inserted:
@@ -319,6 +319,7 @@ jobs:
               mame.write_text("\n".join(lines) + "\n")
               print("Configured _7ZIP_NO_ASM patch for MAME AesOpt.c.")
           '
+
        
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
