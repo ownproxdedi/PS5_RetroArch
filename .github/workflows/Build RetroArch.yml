@@ -1,4 +1,4 @@
-name: Build PS5 RetroArch (RADV - mGBA test)
+name: Build PS5 RetroArch Full
 
 on:
   workflow_dispatch:
