@@ -299,7 +299,7 @@ jobs:
                   patched += 1
           print(f"Redirected nasm.us URLs in {patched} build script(s).")
           '
-          # 4. Disable 256-bit VAES intrinsics in MAME's 7z/lzma (unsupported on PS5 Zen 2).
+          # 4. Inspect build-mame.sh and disable VAES intrinsics in MAME's lzma.
           python3 -c '
           from pathlib import Path
           import sys
@@ -307,18 +307,18 @@ jobs:
           mame = Path("tools/build-mame.sh")
           text = mame.read_text()
           if "AesOpt.c" not in text:
+              target = "freebsd_x64_clang"
+              if target not in text:
+                  sys.exit("Could not locate freebsd_x64_clang in tools/build-mame.sh")
               lines = text.splitlines()
-              inserted = False
               for i, line in enumerate(lines):
-                  if "make " in line and ("freebsd_x64_clang" in line or "-C " in line or "-f " in line):
-                      lines.insert(i, "sed -i \"1i #define _7ZIP_NO_ASM\" \"$root/.deps/mame-src/3rdparty/lzma/C/AesOpt.c\"")
-                      inserted = True
+                  if target in line:
+                      lines.insert(i, "sed -i \"s/__AVX2__/__AVX2_DISABLED_FOR_VAES__/g\" \"$root/.deps/mame-src/3rdparty/lzma/C/AesOpt.c\"")
                       break
-              if not inserted:
-                  sys.exit("Could not locate make command in tools/build-mame.sh")
               mame.write_text("\n".join(lines) + "\n")
-              print("Configured _7ZIP_NO_ASM patch for MAME AesOpt.c.")
+              print("Configured AesOpt.c VAES guard patch in tools/build-mame.sh.")
           '
+
 
        
       # --------------------------------------------------
@@ -418,18 +418,16 @@ jobs:
       # --------------------------------------------------
       # 9. Failure diagnostics
       # --------------------------------------------------
-      - name: Diagnose RetroArch configure failure
+      - name: Diagnose build failure
         if: failure()
         run: |
-          LOG="PS5_RetroArch/build/ra-conf/configure.log"
-          if [ -f "$LOG" ]; then
-          echo "=========================================="
-          echo "RetroArch configure.log (last 150 lines)"
-          echo "=========================================="
-          tail -n 150 "$LOG"
-          else
-          echo "configure.log not found: $LOG"
+          if [ -f "PS5_RetroArch/build-title.log" ]; then
+            echo "=========================================="
+            echo "Compiler/Linker errors in build-title.log"
+            echo "=========================================="
+            grep -n -C 5 "error:" PS5_RetroArch/build-title.log | tail -n 80 || true
           fi
+
       # --------------------------------------------------
       # 10. Package title
       # --------------------------------------------------
