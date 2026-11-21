@@ -40,7 +40,7 @@ if [[ $mode == ps5 ]]; then
     flags+=" -march=znver2 -Dgetaddrinfo=ps5_smb_getaddrinfo -Dfreeaddrinfo=ps5_smb_freeaddrinfo"
     # Only libsmb2 sockets: per-call MSG_DONTWAIT keeps its reply-draining loop
     # bounded even if the descriptor's O_NONBLOCK setting is ineffective.
-    flags+=" -march=znver2 -DHAVE_GETADDRINFO=0 -Dgetaddrinfo=ps5_smb_getaddrinfo -Dfreeaddrinfo=ps5_smb_freeaddrinfo -Darc4random_buf=ps5_smb_arc4random_buf"
+    flags+=" -march=znver2 -DHAVE_GETADDRINFO=0 -Dgetaddrinfo=ps5_smb_getaddrinfo -Dfreeaddrinfo=ps5_smb_freeaddrinfo -Darc4random_buf=ps5_smb_arc4random_buf -Dreadv=ps5_smb_socket_readv -Dwritev=ps5_smb_socket_writev"
 fi
 
 archive="$root/.deps/downloads/libsmb2-$revision.tar.gz"
