@@ -439,8 +439,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PPSA99169-radv
-          path: |
-            PPSA99169-radv.zip
-            PPSA99169-radv.zip.sha256
-            if-no-files-found: error
+          path: PS5_RetroArch/dist/PPSA99169
+          if-no-files-found: error
           retention-days: 14
