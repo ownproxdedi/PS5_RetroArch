@@ -278,28 +278,36 @@ jobs:
                   print(f"Updated LOG_SHA in build-lapy.py to {actual_sha[:12]}.")
           '
 
-          # 3. Redirect www.nasm.us downloads to a working mirror (Sortix / GitHub).
+          # 3. Redirect any nasm.us URLs across tools/ and tooling/ to Sortix's NASM mirror.
           python3 -c '
           from pathlib import Path
 
           patched = 0
-          for script in sorted(Path("tools").glob("*.sh")):
-              text = script.read_text()
-              if "nasm.us" not in text:
+          for folder in ("tools", "tooling"):
+              p = Path(folder)
+              if not p.is_dir():
                   continue
-              new_text = text.replace(
-                  "https://nasm.us",
-                  "https://sortix.org",
-              ).replace(
-                  "http://nasm.us",
-                  "https://sortix.org",
-              )
-              if new_text != text:
-                  script.write_text(new_text)
-                  patched += 1
-          print(f"Redirected nasm.us URLs in {patched} build script(s).")
+              for f in p.rglob("*"):
+                  if not f.is_file():
+                      continue
+                  try:
+                      text = f.read_text()
+                  except UnicodeDecodeError:
+                      continue
+                  if "nasm.us" not in text:
+                      continue
+                  new_text = (
+                      text.replace("https://nasm.us", "https://sortix.org")
+                          .replace("http://nasm.us", "https://sortix.org")
+                          .replace("https://nasm.us", "https://sortix.org")
+                  )
+                  if new_text != text:
+                      f.write_text(new_text)
+                      patched += 1
+          print(f"Redirected nasm.us URLs in {patched} file(s).")
           '
-          # 4. Inspect build-mame.sh and disable VAES intrinsics in MAME's lzma.
+
+          # 4. Disable 256-bit VAES intrinsics in MAME AesOpt.c right before MAME compiles.
           python3 -c '
           from pathlib import Path
           import sys
@@ -307,17 +315,19 @@ jobs:
           mame = Path("tools/build-mame.sh")
           text = mame.read_text()
           if "AesOpt.c" not in text:
-              target = "freebsd_x64_clang"
-              if target not in text:
-                  sys.exit("Could not locate freebsd_x64_clang in tools/build-mame.sh")
               lines = text.splitlines()
+              inserted = False
               for i, line in enumerate(lines):
-                  if target in line:
-                      lines.insert(i, "sed -i \"s/__AVX2__/__AVX2_DISABLED_FOR_VAES__/g\" \"$root/.deps/mame-src/3rdparty/lzma/C/AesOpt.c\"")
+                  if "make " in line and not line.lstrip().startswith("#"):
+                      lines.insert(i, "find \"$root\" -path \"*mame*3rdparty/lzma/C/AesOpt.c\" -exec sed -i \"s/__AVX2__/__AVX2_DISABLED_FOR_VAES__/g\" {} +")
+                      inserted = True
                       break
+              if not inserted:
+                  sys.exit("Could not locate make invocation in tools/build-mame.sh")
               mame.write_text("\n".join(lines) + "\n")
               print("Configured AesOpt.c VAES guard patch in tools/build-mame.sh.")
           '
+
 
 
        
