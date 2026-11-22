@@ -82,7 +82,7 @@ jobs:
           repository: mihawk-99/PS5_PayloadSDK
           ref: main
           path: PS5_PayloadSDK
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Checkout PS5 MihawkGen
         uses: actions/checkout@v4
