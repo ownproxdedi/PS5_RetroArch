@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: PS5_RetroArch
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout YOUR PS5 Vulkan repository
         uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
           repository: ownproxdedi/PS5_Vulkan
           ref: main
           path: PS5_Vulkan
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout PS5 Mesa
         uses: actions/checkout@v4
@@ -74,7 +74,7 @@ jobs:
           repository: mihawk-99/PS5_Mesa
           ref: main
           path: PS5_Mesa
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout PS5 Payload SDK
         uses: actions/checkout@v4
@@ -82,7 +82,7 @@ jobs:
           repository: mihawk-99/PS5_PayloadSDK
           ref: main
           path: PS5_PayloadSDK
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout PS5 MihawkGen
         uses: actions/checkout@v4
@@ -90,7 +90,7 @@ jobs:
           repository: mihawk-99/PS5_MihawkGen
           ref: main
           path: PS5_MihawkGen
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout PS5 LLVM
         uses: actions/checkout@v4
@@ -106,7 +106,7 @@ jobs:
           repository: mpereiraesaa/prospero-win
           ref: main
           path: prospero-win-main
-          fetch-depth: 0
+          fetch-depth: 1
           
       - name: Checkout PS5-Lapy-JB-Daemon
         uses: actions/checkout@v4
@@ -114,7 +114,7 @@ jobs:
           repository: mpereiraesaa/PS5-Lapy-JB-Daemon
           ref: main
           path: PS5-Lapy-JB-Daemon
-          fetch-depth: 0
+          fetch-depth: 1
 
 
       # --------------------------------------------------
