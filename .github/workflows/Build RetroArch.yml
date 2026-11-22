@@ -366,8 +366,7 @@ jobs:
         with:
           path: ~/.ccache
           key: ${{ steps.restore-ccache.outputs.cache-primary-key }}
-
-
+          
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
       # --------------------------------------------------
@@ -382,14 +381,15 @@ jobs:
           PS5_PAYLOAD_SDK_FORK: ${{ github.workspace }}/PS5_PayloadSDK
           PS5_CLANG: /usr/bin/clang
           core_ccache: ccache
-          CCACHE_MAXSIZE: 6G          
+          CCACHE_MAXSIZE: 4G
         run: |
           set -euo pipefail
 
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
 
-          # Route clang-18 through ccache so MAME and all 33 cores persist across runs
+          # Route clang-18 through ccache (and keep -mvaes guard for AesOpt.c)
+          bash tools/setup-native-dependencies.sh
           rm -f "$PS5_PAYLOAD_SDK/bin/clang"
           cat > "$PS5_PAYLOAD_SDK/bin/clang" <<'EOF'
           #!/usr/bin/env bash
@@ -400,7 +400,13 @@ jobs:
           exec ccache /usr/bin/clang-18 "$@" "${extra[@]}"
           EOF
           chmod +x "$PS5_PAYLOAD_SDK/bin/clang"
-          
+
+          # Satisfy RetroArch ./configure's -lvulkan probe if not already staged by SDK
+          if [[ ! -f "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" && ! -f "$PS5_PAYLOAD_SDK/target/lib/libvulkan.so" ]]; then
+            mkdir -p build/radv-shim
+            echo 'void vkCreateInstance(void) {}' | "$PS5_PAYLOAD_SDK/bin/prospero-clang" -x c -c - -o build/radv-shim/vk_stub.o
+            "$PS5_PAYLOAD_SDK/bin/prospero-ar" rcs "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" build/radv-shim/vk_stub.o
+          fi
 
           echo "=========================================="
           echo "Starting PS5 RetroArch RADV build"
@@ -414,62 +420,6 @@ jobs:
             echo "::error::RADV archive is missing: $RADV_ARCHIVE"
             exit 1
           fi
-
-          NM_TOOL=$(command -v llvm-nm-18 || command -v llvm-nm || command -v nm)
-          PROC_ADDR_SYM=$("$NM_TOOL" -g --defined-only "$RADV_ARCHIVE" 2>/dev/null | awk '/GetInstanceProcAddr$/ {print $NF; exit}' || true)
-          echo "Detected RADV entry point: ${PROC_ADDR_SYM:-none}"
-
-          if [[ -z "${PROC_ADDR_SYM:-}" ]]; then
-            echo "::error::No *GetInstanceProcAddr symbol found in $RADV_ARCHIVE"
-            exit 1
-          fi
-
-          mkdir -p build/radv-shim
-          cat > build/radv-shim/radv_compat_shim.c <<EOF
-          #include <stdint.h>
-          #include <time.h>
-
-          typedef void (*PFN_vkVoidFunction)(void);
-          extern PFN_vkVoidFunction ${PROC_ADDR_SYM}(void *instance, const char *pName);
-
-          PFN_vkVoidFunction vkGetInstanceProcAddr(void *instance, const char *pName) {
-              return ${PROC_ADDR_SYM}(instance, pName);
-          }
-
-          uint64_t ps5vk_debug_now_ns(void) {
-              struct timespec ts;
-              clock_gettime(CLOCK_MONOTONIC, &ts);
-              return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
-          }
-
-          uint64_t ps5vk_debug_last_present_ns(void) {
-              return 0;
-          }
-          EOF
-
-          "$PS5_PAYLOAD_SDK/bin/prospero-clang" -O2 -fPIC -c \
-            build/radv-shim/radv_compat_shim.c \
-            -o build/radv-shim/radv_compat_shim.o
-
-          SHIM_OBJ="$PWD/build/radv-shim/radv_compat_shim.o"
-          python3 -c '
-          from pathlib import Path
-          import sys
-          bt = Path("tools/build-title.sh")
-          text = bt.read_text()
-          shim = sys.argv[1]
-          if "APP_EXTRA_OBJECTS=" not in text:
-              sys.exit("APP_EXTRA_OBJECTS= not found in tools/build-title.sh")
-          text = text.replace("APP_EXTRA_OBJECTS=", f"APP_EXTRA_OBJECTS=\"{shim} \"", 1)
-          bt.write_text(text)
-          print(f"Injected {shim} into tools/build-title.sh")
-          ' "$SHIM_OBJ"
-
-          # Satisfy RetroArch ./configure's -lvulkan (vkCreateInstance) probe when using RADV
-          if [[ ! -f "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" && ! -f "$PS5_PAYLOAD_SDK/target/lib/libvulkan.so" ]]; then
-            echo 'void vkCreateInstance(void) {}' | "$PS5_PAYLOAD_SDK/bin/prospero-clang" -x c -c - -o build/radv-shim/vk_stub.o
-            "$PS5_PAYLOAD_SDK/bin/prospero-ar" rcs "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" build/radv-shim/vk_stub.o
-          fi          
 
           bash -x tools/build-title.sh 2>&1 | tee build-title.log
 
