@@ -161,13 +161,13 @@ jobs:
           python3 -c "import packaging, mako, yaml, PIL; print('Python dependencies OK')"
           meson --version
           
-      # --------------------------------------------------
+           # --------------------------------------------------
       # 5. Cache & Build RADV
       # --------------------------------------------------
 
-      - name: Cache RADV release archive
-        id: cache-radv
-        uses: actions/cache@v4
+      - name: Restore RADV release archive from cache
+        id: restore-radv
+        uses: actions/cache/restore@v4
         with:
           path: |
             PS5_Vulkan/.deps/native/radv-release
@@ -175,7 +175,7 @@ jobs:
           key: radv-release-${{ runner.os }}-${{ hashFiles('PS5_Vulkan/.git/refs/heads/*', 'PS5_Mesa/.git/refs/heads/*', 'PS5_PayloadSDK/.git/refs/heads/*', 'PS5_LLVM/.git/HEAD') }}
 
       - name: Build RADV release archive
-        if: steps.cache-radv.outputs.cache-hit != 'true'
+        if: steps.restore-radv.outputs.cache-hit != 'true'
         working-directory: PS5_Vulkan
         shell: bash
         env:
@@ -184,15 +184,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "=========================================="
-          echo "Preparing PS5 Vulkan dependencies"
-          echo "=========================================="
-          
           # Shallow-fetch the exact Mesa revision pinned by build-radv.sh
           MESA_REV=$(grep -oE '[0-9a-f]{40}' tools/build-radv.sh | head -n 1)
           if [[ -n "${MESA_REV:-}" ]]; then
             git -C "$PS5_MESA_FORK" fetch --depth=1 origin "$MESA_REV"
           fi
+
+          echo "=========================================="
+          echo "Preparing PS5 Vulkan dependencies"
+          echo "=========================================="
 
           bash tools/setup-native-dependencies.sh
 
@@ -201,6 +201,15 @@ jobs:
           echo "=========================================="
 
           bash tools/build-radv.sh release
+
+      - name: Save RADV release archive to cache
+        if: steps.restore-radv.outputs.cache-hit != 'true' && hashFiles('PS5_Vulkan/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            PS5_Vulkan/.deps/native/radv-release
+            PS5_Vulkan/build
+          key: ${{ steps.restore-radv.outputs.cache-primary-key }}
 
       - name: Verify RADV release archive
         working-directory: PS5_Vulkan
@@ -225,16 +234,18 @@ jobs:
           cat ".deps/native/radv-release/PROVENANCE.txt"
 
       # --------------------------------------------------
-      # Cache ccache for fast core rebuilds
+      # Restore ccache for fast core rebuilds
       # --------------------------------------------------
 
-      - name: Cache ccache
-        uses: actions/cache@v4
+      - name: Restore ccache
+        id: restore-ccache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.ccache
           key: ccache-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
             ccache-${{ runner.os }}-
+
 
       # --------------------------------------------------
       # 6. Prepare RetroArch dependencies
@@ -330,6 +341,15 @@ jobs:
                   patched += 1
           print(f"Updated PS5_CLANG wrapper in {patched} build script(s).")
           '
+
+      
+      - name: Save ccache
+        if: always() && hashFiles('~/.ccache') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ccache
+          key: ${{ steps.restore-ccache.outputs.cache-primary-key }}
+
 
       # --------------------------------------------------
       # 8. Build RetroArch using RADV
