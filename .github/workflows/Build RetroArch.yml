@@ -427,9 +427,17 @@ jobs:
       # --------------------------------------------------
       # 9. Failure diagnostics
       # --------------------------------------------------
+
       - name: Diagnose build failure
         if: failure()
         run: |
+          if [ -f "PS5_RetroArch/build/ra-conf/configure.log" ]; then
+            echo "=========================================="
+            echo "RetroArch configure.log (last 100 lines)"
+            echo "=========================================="
+            tail -n 100 PS5_RetroArch/build/ra-conf/configure.log
+          fi
+
           if [ -f "PS5_RetroArch/build-title.log" ]; then
             echo "=========================================="
             echo "Compiler/Linker errors in build-title.log"
