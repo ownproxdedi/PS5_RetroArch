@@ -327,7 +327,38 @@ jobs:
                   lapy.write_text(lapy_text.replace(target_sha, actual_sha, 1))
                   print(f"Updated LOG_SHA in build-lapy.py to {actual_sha[:12]}.")
           '
+          
+          # 3. Remove mame from core_names and skip its metadata generation.
+          python3 -c '
+          from pathlib import Path
+          import re, sys
 
+          build = Path("tools/build-title.sh")
+          text = build.read_text()
+          new_text, count = re.subn(
+              r"(core_names=\([^)]*?)\bmame\b\s*",
+              r"\1",
+              text,
+              count=1,
+          )
+          if not count:
+              sys.exit("Could not locate mame inside core_names=(...) in tools/build-title.sh")
+          build.write_text(new_text)
+          print("Removed mame from tools/build-title.sh.")
+
+          metadata = Path("tools/generate-core-metadata.py")
+          meta_text = metadata.read_text()
+          old = "        data = stella_data(source) if stem == '\''stella'\'' else compile_tables(stem, source, flags, helper)"
+          new = (
+              "        if stem == '\''mame'\'' and not source.is_file():\n"
+              "            continue\n"
+              + old
+          )
+          if old not in meta_text:
+              sys.exit("Could not locate metadata generation line in tools/generate-core-metadata.py")
+          metadata.write_text(meta_text.replace(old, new, 1))
+          print("Configured metadata skip for mame.")
+          '
       
       - name: Save ccache
         if: always() && hashFiles('~/.ccache') != ''
