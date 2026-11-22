@@ -358,8 +358,7 @@ jobs:
           export PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk"
           export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
 
-          # Ensure prospero-clang's internal clang binary passes -mvaes for MAME's AesOpt.c
-          bash tools/setup-native-dependencies.sh
+          # Route clang-18 through ccache so MAME and all 33 cores persist across runs
           rm -f "$PS5_PAYLOAD_SDK/bin/clang"
           cat > "$PS5_PAYLOAD_SDK/bin/clang" <<'EOF'
           #!/usr/bin/env bash
@@ -367,10 +366,10 @@ jobs:
           for arg in "$@"; do
             [[ "$arg" == *"AesOpt.c" ]] && extra=(-mvaes)
           done
-          exec /usr/bin/clang-18 "$@" "${extra[@]}"
+          exec ccache /usr/bin/clang-18 "$@" "${extra[@]}"
           EOF
           chmod +x "$PS5_PAYLOAD_SDK/bin/clang"
-
+          
 
           echo "=========================================="
           echo "Starting PS5 RetroArch RADV build"
