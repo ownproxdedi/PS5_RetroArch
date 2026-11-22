@@ -159,13 +159,22 @@ jobs:
 
           python3 -c "import packaging, mako, yaml, PIL; print('Python dependencies OK')"
           meson --version
-
-
+          
       # --------------------------------------------------
-      # 5. Build RADV
+      # 5. Cache & Build RADV
       # --------------------------------------------------
+
+      - name: Cache RADV release archive
+        id: cache-radv
+        uses: actions/cache@v4
+        with:
+          path: |
+            PS5_Vulkan/.deps/native/radv-release
+            PS5_Vulkan/build
+          key: radv-release-${{ runner.os }}-${{ hashFiles('PS5_Vulkan/.git/refs/heads/*', 'PS5_Mesa/.git/refs/heads/*', 'PS5_PayloadSDK/.git/refs/heads/*', 'PS5_LLVM/.git/HEAD') }}
 
       - name: Build RADV release archive
+        if: steps.cache-radv.outputs.cache-hit != 'true'
         working-directory: PS5_Vulkan
         shell: bash
         env:
@@ -186,10 +195,16 @@ jobs:
 
           bash tools/build-radv.sh release
 
+      - name: Verify RADV release archive
+        working-directory: PS5_Vulkan
+        shell: bash
+        run: |
+          set -euo pipefail
+
           RADV_ARCHIVE=".deps/native/radv-release/lib/libvulkan_radeon.ps5.a"
 
           if [[ ! -s "$RADV_ARCHIVE" ]]; then
-            echo "::error::RADV archive was not generated"
+            echo "::error::RADV archive was not generated or restored"
             exit 1
           fi
 
@@ -198,11 +213,11 @@ jobs:
             exit 1
           fi
 
-          echo "RADV successfully built:"
+          echo "RADV ready:"
           ls -lh "$RADV_ARCHIVE"
           cat ".deps/native/radv-release/PROVENANCE.txt"
 
-            # --------------------------------------------------
+      # --------------------------------------------------
       # 6. Prepare RetroArch dependencies
       # --------------------------------------------------
 
@@ -217,13 +232,12 @@ jobs:
           echo "Preparing RetroArch dependencies..."
           make deps
 
+          echo "Fixing RetroArch header check path in fetch-retroarch.sh..."
+          sed -i 's|libretro-common/include/retroarch.h|retroarch.h|g' tools/fetch-retroarch.sh
+
           echo "Fetching pinned RetroArch source..."
           rm -rf vendor/retroarch
-          bash tools/fetch-retroarch.sh || {
-            echo "Retrying fetch-retroarch.sh..."
-            rm -rf vendor/retroarch
-            bash tools/fetch-retroarch.sh
-          }
+          bash tools/fetch-retroarch.sh
 
 
       # --------------------------------------------------
