@@ -31,6 +31,7 @@ jobs:
             update
 
           sudo apt-get install -y \
+            ccache \
             build-essential \
             clang clang-18 \
             llvm llvm-18 llvm-18-dev \
@@ -98,7 +99,7 @@ jobs:
           repository: mihawk-99/PS5_LLVM
           ref: main
           path: PS5_LLVM
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout prospero-win (for Lapy ps5log)
         uses: actions/checkout@v4
@@ -106,7 +107,7 @@ jobs:
           repository: mpereiraesaa/prospero-win
           ref: main
           path: prospero-win-main
-          fetch-depth: 1
+          fetch-depth: 0
           
       - name: Checkout PS5-Lapy-JB-Daemon
         uses: actions/checkout@v4
@@ -114,7 +115,7 @@ jobs:
           repository: mpereiraesaa/PS5-Lapy-JB-Daemon
           ref: main
           path: PS5-Lapy-JB-Daemon
-          fetch-depth: 1
+          fetch-depth: 0
 
 
       # --------------------------------------------------
@@ -224,6 +225,18 @@ jobs:
           cat ".deps/native/radv-release/PROVENANCE.txt"
 
       # --------------------------------------------------
+      # Cache ccache for fast core rebuilds
+      # --------------------------------------------------
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      # --------------------------------------------------
       # 6. Prepare RetroArch dependencies
       # --------------------------------------------------
 
@@ -331,6 +344,8 @@ jobs:
           PS5_FRAMEGEN: ${{ github.workspace }}/PS5_MihawkGen
           PS5_PAYLOAD_SDK_FORK: ${{ github.workspace }}/PS5_PayloadSDK
           PS5_CLANG: /usr/bin/clang
+          core_ccache: ccache
+          CCACHE_MAXSIZE: 6G          
         run: |
           set -euo pipefail
 
@@ -415,6 +430,12 @@ jobs:
           bt.write_text(text)
           print(f"Injected {shim} into tools/build-title.sh")
           ' "$SHIM_OBJ"
+
+          # Satisfy RetroArch ./configure's -lvulkan (vkCreateInstance) probe when using RADV
+          if [[ ! -f "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" && ! -f "$PS5_PAYLOAD_SDK/target/lib/libvulkan.so" ]]; then
+            echo 'void vkCreateInstance(void) {}' | "$PS5_PAYLOAD_SDK/bin/prospero-clang" -x c -c - -o build/radv-shim/vk_stub.o
+            "$PS5_PAYLOAD_SDK/bin/prospero-ar" rcs "$PS5_PAYLOAD_SDK/target/lib/libvulkan.a" build/radv-shim/vk_stub.o
+          fi          
 
           bash -x tools/build-title.sh 2>&1 | tee build-title.log
 
