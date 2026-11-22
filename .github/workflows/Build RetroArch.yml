@@ -202,7 +202,7 @@ jobs:
           ls -lh "$RADV_ARCHIVE"
           cat ".deps/native/radv-release/PROVENANCE.txt"
 
-      # --------------------------------------------------
+            # --------------------------------------------------
       # 6. Prepare RetroArch dependencies
       # --------------------------------------------------
 
@@ -218,7 +218,13 @@ jobs:
           make deps
 
           echo "Fetching pinned RetroArch source..."
-          bash tools/fetch-retroarch.sh
+          rm -rf vendor/retroarch
+          bash tools/fetch-retroarch.sh || {
+            echo "Retrying fetch-retroarch.sh..."
+            rm -rf vendor/retroarch
+            bash tools/fetch-retroarch.sh
+          }
+
 
       # --------------------------------------------------
       # 7. Configure RADV full-core build
