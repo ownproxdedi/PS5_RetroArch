@@ -327,20 +327,6 @@ jobs:
                   lapy.write_text(lapy_text.replace(target_sha, actual_sha, 1))
                   print(f"Updated LOG_SHA in build-lapy.py to {actual_sha[:12]}.")
           '
-          
-          
-          # 3. Point PS5_CLANG in tools/*.sh to our clang-wrap script so AesOpt.c gets -mvaes.
-          python3 -c '
-          from pathlib import Path
-
-          patched = 0
-          for script in sorted(Path("tools").glob("*.sh")):
-              text = script.read_text()
-              if "PS5_CLANG=/usr/bin/clang" in text:
-                  script.write_text(text.replace("PS5_CLANG=/usr/bin/clang", "PS5_CLANG=\"$root/build/clang-wrap/clang\""))
-                  patched += 1
-          print(f"Updated PS5_CLANG wrapper in {patched} build script(s).")
-          '
 
       
       - name: Save ccache
