@@ -74,7 +74,7 @@ jobs:
           repository: mihawk-99/PS5_Mesa
           ref: main
           path: PS5_Mesa
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout PS5 Payload SDK
         uses: actions/checkout@v4
@@ -186,6 +186,12 @@ jobs:
           echo "=========================================="
           echo "Preparing PS5 Vulkan dependencies"
           echo "=========================================="
+          
+          # Shallow-fetch the exact Mesa revision pinned by build-radv.sh
+          MESA_REV=$(grep -oE '[0-9a-f]{40}' tools/build-radv.sh | head -n 1)
+          if [[ -n "${MESA_REV:-}" ]]; then
+            git -C "$PS5_MESA_FORK" fetch --depth=1 origin "$MESA_REV"
+          fi
 
           bash tools/setup-native-dependencies.sh
 
