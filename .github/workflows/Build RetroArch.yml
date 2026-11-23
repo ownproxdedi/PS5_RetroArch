@@ -161,7 +161,7 @@ jobs:
           python3 -c "import packaging, mako, yaml, PIL; print('Python dependencies OK')"
           meson --version
           
-           # --------------------------------------------------
+      # --------------------------------------------------
       # 5. Cache & Build RADV
       # --------------------------------------------------
 
@@ -366,6 +366,26 @@ jobs:
           metadata.write_text(meta_text.replace(old, new, 1))
           print("Configured metadata skip for mame.")
           '
+
+          # 4. Ensure assets/sounds/README.md exists for tools/stage-notices.py.
+          python3 -c '
+          from pathlib import Path
+          import urllib.request
+
+          url = "https://githubusercontent.com"
+          try:
+              content = urllib.request.urlopen(url, timeout=15).read().decode("utf-8", "replace")
+          except Exception:
+              content = "RetroArch audio assets (CC-BY-4.0 / public domain).\n"
+
+          for rel in ("vendor/retroarch/assets/sounds/README.md", "assets/sounds/README.md"):
+              p = Path(rel)
+              p.parent.mkdir(parents=True, exist_ok=True)
+              if not p.is_file() or p.stat().st_size == 0:
+                  p.write_text(content)
+          print("Staged assets/sounds/README.md for stage-notices.py.")
+          '
+
       
       - name: Save ccache
         if: always() && hashFiles('~/.ccache') != ''
