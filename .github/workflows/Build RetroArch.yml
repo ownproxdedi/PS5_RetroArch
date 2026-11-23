@@ -269,6 +269,13 @@ jobs:
           rm -rf vendor/retroarch
           bash tools/fetch-retroarch.sh
 
+          if [[ ! -s vendor/retroarch/assets/sounds/README.md ]]; then
+            mkdir -p vendor/retroarch/assets/sounds
+            curl -fsSL https://githubusercontent.com \
+              -o vendor/retroarch/assets/sounds/README.md || \
+              echo "RetroArch audio assets (CC-BY-4.0 / public domain)." > vendor/retroarch/assets/sounds/README.md
+          fi
+
 
       # --------------------------------------------------
       # 7. Configure RADV full-core build
